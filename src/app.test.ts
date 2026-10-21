@@ -1,5 +1,10 @@
 import { createApp } from './app.js';
-import { beforeAll, afterAll, expect, it, describe } from 'vitest';
+import { beforeAll, beforeEach, afterAll, expect, it, describe } from 'vitest';
+import { clearProducts } from './repositories/products.repository.js';
+
+beforeEach(() => {
+  clearProducts();
+});
 
 const app = createApp();
 let port: number;

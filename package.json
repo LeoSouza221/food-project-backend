@@ -2,7 +2,7 @@
   "name": "food-project-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/server.ts",
   "scripts": {
     "dev": "tsx src/server.ts",
     "format": "prettier --write .",

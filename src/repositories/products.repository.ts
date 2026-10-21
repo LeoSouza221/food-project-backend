@@ -3,6 +3,10 @@ import crypto from 'node:crypto';
 
 const products: Product[] = [];
 
+export const clearProducts = () => {
+  products.length = 0;
+};
+
 export const saveProduct = (product: CreateProductInput): Product => {
   const newProduct = { ...product, id: crypto.randomUUID() };
   products.push(newProduct);
