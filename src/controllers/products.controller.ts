@@ -7,13 +7,13 @@ import {
   updateProduct,
 } from '../services/product.service.js';
 
-export const listProductsController = (res: ServerResponse) => {
+export const listProductsController = async (res: ServerResponse) => {
   try {
-    const products: Product[] = getProducts();
+    const products: Product[] = await getProducts();
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ products }));
-  } catch {
+  } catch (error) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Internal Server Error' }));
   }

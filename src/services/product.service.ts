@@ -43,7 +43,7 @@ export const createProduct = (product: unknown): Product => {
   return saveProduct(product);
 };
 
-export const getProducts = (): Product[] => {
+export const getProducts = (): Promise<Product[]> => {
   return getProductsRepository();
 };
 

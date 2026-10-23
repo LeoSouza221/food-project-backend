@@ -9,6 +9,16 @@ import {
 import { createProduct } from '../services/product.service.js';
 import * as productService from '../services/product.service.js';
 
+vi.mock('../services/product.service.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services/product.service.js')>();
+  return {
+    ...actual,
+    getProducts: vi
+      .fn()
+      .mockResolvedValue([{ name: 'Hambúrguer', price: 25.9, category: 1, id: '1' }]),
+  };
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -55,15 +65,14 @@ describe('listProductByIdController', () => {
 });
 
 describe('listProductsController', () => {
-  it('should return a list of products', () => {
+  it('should return a list of products', async () => {
     const res = {
       writeHead: vi.fn(),
       end: vi.fn(),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    createProduct(product);
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
 
-    listProductsController(res);
+    await listProductsController(res);
     const responseBody = res.end.mock.calls[0][0];
     const parsedResponse = JSON.parse(responseBody);
 
@@ -73,17 +82,30 @@ describe('listProductsController', () => {
     });
   });
 
-  it('should return an empty list when there are no products', () => {
+  it('should return an empty list when there are no products', async () => {
     const res = {
       writeHead: vi.fn(),
       end: vi.fn(),
     } as unknown as ServerResponse;
 
-    vi.spyOn(productService, 'getProducts').mockReturnValue([]);
-    listProductsController(res);
+    vi.spyOn(productService, 'getProducts').mockResolvedValue([]);
+    await listProductsController(res);
 
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ products: [] }));
+  });
+
+  it('should return 500 when there is an internal server error', async () => {
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    } as unknown as ServerResponse;
+
+    vi.spyOn(productService, 'getProducts').mockRejectedValue(new Error('Internal Server Error'));
+    await listProductsController(res);
+
+    expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
   });
 });
 
