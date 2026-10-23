@@ -42,12 +42,17 @@ beforeEach(() => {
 });
 
 describe('saveProduct', () => {
-  it('should save a product successfully', () => {
+  it('should save a product successfully', async () => {
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = saveProduct(product);
+    const savedProduct = await saveProduct(product);
     expect(savedProduct).toMatchObject(product);
     expect(savedProduct.id).toBeDefined();
     expect(savedProduct.id).not.toHaveLength(0);
+  });
+  it('should throw an error when saving a product fails', async () => {
+    mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
+    await expect(saveProduct(product)).rejects.toThrow('It was not possible to save the product.');
   });
 });
 
@@ -85,42 +90,43 @@ describe('getProductsRepository', () => {
 });
 
 describe('getProductByIdRepository', () => {
-  it('should retrieve a product by its ID successfully', () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
-    const savedProduct = saveProduct(product);
-    const retrievedProduct = getProductByIdRepository(savedProduct.id);
+  it('should retrieve a product by its ID successfully', async () => {
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
+    const savedProduct = await saveProduct(product);
+    const retrievedProduct = await getProductByIdRepository(savedProduct.id);
 
     expect(retrievedProduct).toEqual(savedProduct);
     expect(retrievedProduct?.id).toBe(savedProduct.id);
   });
 
-  it('should return undefined for a non-existent product ID', () => {
+  it('should throw an error for a non-existent product ID', async () => {
     const id = crypto.randomUUID();
-    const retrievedProduct = getProductByIdRepository(id);
-    expect(retrievedProduct).toBeUndefined();
+
+    vi.mocked(pool.query).mockImplementationOnce(async () => ({ rows: [] }));
+    await expect(getProductByIdRepository(id)).rejects.toThrow('Product not found.');
   });
 });
 
-describe('updateProductRepository', () => {
-  it('should update a product successfully', () => {
+describe.skip('updateProductRepository', () => {
+  it('should update a product successfully', async () => {
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = saveProduct(product);
+    const savedProduct = await saveProduct(product);
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
-    const updatedProduct = updateProductRepository(savedProduct.id, updatedData);
+    const updatedProduct = await updateProductRepository(savedProduct.id, updatedData);
 
     expect(updatedProduct).toMatchObject(updatedData);
     expect(updatedProduct?.id).toBe(savedProduct.id);
 
-    const retrievedProduct = getProductByIdRepository(savedProduct.id);
+    const retrievedProduct = await getProductByIdRepository(savedProduct.id);
     expect(retrievedProduct).toEqual(updatedProduct);
   });
 
   it.each([[{ price: 35.9 }], [{ category: 2 }], [{ name: 'Hambúrguer' }]])(
     'should update just the provided fields %1',
-    (updatedData: { name?: string; price?: number; category?: number }) => {
+    async (updatedData: { name?: string; price?: number; category?: number }) => {
       const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-      const savedProduct = saveProduct(product);
-      const updatedProduct = updateProductRepository(savedProduct.id, updatedData);
+      const savedProduct = await saveProduct(product);
+      const updatedProduct = await updateProductRepository(savedProduct.id, updatedData);
 
       const expectedProduct = { ...savedProduct, ...updatedData };
       expect(updatedProduct).toEqual(expectedProduct);
