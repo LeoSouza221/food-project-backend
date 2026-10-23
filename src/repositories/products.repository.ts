@@ -7,7 +7,7 @@ export const clearProducts = () => {
   products.length = 0;
 };
 
-export const saveProduct = async (product: CreateProductInput): Promise<Product> => {
+export const saveProductRepository = async (product: CreateProductInput): Promise<Product> => {
   const query = `
     INSERT INTO products (name, price, category_id) 
     VALUES ($1, $2, $3) 

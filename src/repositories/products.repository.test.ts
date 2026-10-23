@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  saveProduct,
+  saveProductRepository,
   getProductsRepository,
   getProductByIdRepository,
   updateProductRepository,
@@ -44,7 +44,7 @@ beforeEach(() => {
 describe('saveProduct', () => {
   it('should save a product successfully', async () => {
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = await saveProduct(product);
+    const savedProduct = await saveProductRepository(product);
     expect(savedProduct).toMatchObject(product);
     expect(savedProduct.id).toBeDefined();
     expect(savedProduct.id).not.toHaveLength(0);
@@ -52,7 +52,9 @@ describe('saveProduct', () => {
   it('should throw an error when saving a product fails', async () => {
     mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    await expect(saveProduct(product)).rejects.toThrow('It was not possible to save the product.');
+    await expect(saveProductRepository(product)).rejects.toThrow(
+      'It was not possible to save the product.',
+    );
   });
 });
 
@@ -92,7 +94,7 @@ describe('getProductsRepository', () => {
 describe('getProductByIdRepository', () => {
   it('should retrieve a product by its ID successfully', async () => {
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = await saveProduct(product);
+    const savedProduct = await saveProductRepository(product);
     const retrievedProduct = await getProductByIdRepository(savedProduct.id);
 
     expect(retrievedProduct).toEqual(savedProduct);
@@ -110,7 +112,7 @@ describe('getProductByIdRepository', () => {
 describe.skip('updateProductRepository', () => {
   it('should update a product successfully', async () => {
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = await saveProduct(product);
+    const savedProduct = await saveProductRepository(product);
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
     const updatedProduct = await updateProductRepository(savedProduct.id, updatedData);
 
@@ -125,7 +127,7 @@ describe.skip('updateProductRepository', () => {
     'should update just the provided fields %1',
     async (updatedData: { name?: string; price?: number; category?: number }) => {
       const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-      const savedProduct = await saveProduct(product);
+      const savedProduct = await saveProductRepository(product);
       const updatedProduct = await updateProductRepository(savedProduct.id, updatedData);
 
       const expectedProduct = { ...savedProduct, ...updatedData };

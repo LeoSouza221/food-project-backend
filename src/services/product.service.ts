@@ -1,5 +1,5 @@
 import {
-  saveProduct,
+  saveProductRepository,
   getProductsRepository,
   getProductByIdRepository,
   updateProductRepository,
@@ -35,20 +35,20 @@ export const validateProduct = (product: unknown): product is CreateProductInput
   return true;
 };
 
-export const createProduct = (product: unknown): Product => {
+export const createProduct = (product: unknown): Promise<Product> => {
   if (!validateProduct(product)) {
     throw new Error('Invalid product data');
   }
 
-  return saveProduct(product);
+  return saveProductRepository(product);
 };
 
 export const getProducts = (): Promise<Product[]> => {
   return getProductsRepository();
 };
 
-export const getProductById = (id: string): Product => {
-  const product = getProductByIdRepository(id);
+export const getProductById = async (id: string): Promise<Product> => {
+  const product = await getProductByIdRepository(id);
 
   if (!product) {
     throw new Error('Product not found');

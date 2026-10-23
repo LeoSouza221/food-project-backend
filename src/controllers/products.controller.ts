@@ -19,14 +19,14 @@ export const listProductsController = async (res: ServerResponse) => {
   }
 };
 
-export const listProductByIdController = (res: ServerResponse, productId: string) => {
+export const listProductByIdController = async (res: ServerResponse, productId: string) => {
   if (!productId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Product ID is required' }));
   }
 
   try {
-    const product: Product = getProductById(productId);
+    const product: Product = await getProductById(productId);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ product }));
   } catch {
@@ -35,14 +35,14 @@ export const listProductByIdController = (res: ServerResponse, productId: string
   }
 };
 
-export const createProductController = (req: IncomingMessage, res: ServerResponse) => {
+export const createProductController = async (req: IncomingMessage, res: ServerResponse) => {
   let body = '';
   req.on('data', (chunk) => {
     body += chunk.toString();
   });
   let parsedBody: unknown;
 
-  req.on('end', () => {
+  req.on('end', async () => {
     try {
       parsedBody = JSON.parse(body);
     } catch {
@@ -51,7 +51,7 @@ export const createProductController = (req: IncomingMessage, res: ServerRespons
     }
 
     try {
-      const product = createProduct(parsedBody);
+      const product = await createProduct(parsedBody);
       res.writeHead(201, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ message: 'Product received', body: product }));
     } catch {
