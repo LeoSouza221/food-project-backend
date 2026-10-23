@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   saveProduct,
   getProductsRepository,
@@ -6,6 +6,40 @@ import {
   updateProductRepository,
 } from './products.repository.js';
 import crypto from 'node:crypto';
+import { pool } from '../database/pool.js';
+import type { ProductRow } from '../types/product.js';
+import type { QueryResult } from 'pg';
+
+const emptyResult: QueryResult<ProductRow> = {
+  command: 'SELECT',
+  rowCount: 0,
+  oid: 0,
+  fields: [],
+  rows: [],
+};
+
+vi.mock('../database/pool.js', () => {
+  return {
+    pool: {
+      query: vi.fn().mockResolvedValue({
+        rows: [
+          {
+            id: '1',
+            name: 'Hambúrguer',
+            price: '25.9',
+            category_id: 1,
+            created_at: new Date().toISOString(),
+          },
+        ],
+      }),
+    },
+  };
+});
+const mockQuery = vi.mocked(pool.query);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('saveProduct', () => {
   it('should save a product successfully', () => {
@@ -18,35 +52,41 @@ describe('saveProduct', () => {
 });
 
 describe('getProductsRepository', () => {
-  it('should retrieve all products successfully', () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = saveProduct(product);
-    const products = getProductsRepository();
+  it('should retrieve all products successfully', async () => {
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
+    const products = await getProductsRepository();
 
     expect(Array.isArray(products)).toBe(true);
-    expect(products).toContainEqual(savedProduct);
+    expect(products).toContainEqual(product);
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT id, name, price, category_id, created_at FROM products',
+    );
   });
 
-  it('should not modify the internal collection when the returned array changes', () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
+  it('should not affect subsequent query results when the returned array changes', async () => {
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
+    const products = await getProductsRepository();
 
-    const savedProduct = saveProduct(product);
-    const products = getProductsRepository();
-
-    expect(products).toContainEqual(savedProduct);
+    expect(products).toContainEqual(product);
 
     const id = crypto.randomUUID();
     const fakeProduct = { id, name: 'X-Salada', price: 10.0, category: 1 };
     products.push(fakeProduct);
 
-    const newProducts = getProductsRepository();
+    const newProducts = await getProductsRepository();
     expect(newProducts).not.toContainEqual(fakeProduct);
+  });
+
+  it('should return an empty array when no products exist', async () => {
+    mockQuery.mockImplementationOnce(async () => emptyResult);
+    const products = await getProductsRepository();
+    expect(products).toEqual([]);
   });
 });
 
 describe('getProductByIdRepository', () => {
   it('should retrieve a product by its ID successfully', () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
     const savedProduct = saveProduct(product);
     const retrievedProduct = getProductByIdRepository(savedProduct.id);
 

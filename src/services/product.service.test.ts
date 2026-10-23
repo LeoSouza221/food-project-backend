@@ -8,9 +8,24 @@ import {
 } from './product.service.js';
 import * as productsRepository from '../repositories/products.repository.js';
 
-afterEach(() => {
-  vi.restoreAllMocks();
+vi.mock('../repositories/products.repository.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../repositories/products.repository.js')>();
+  return {
+    ...actual,
+    getProductsRepository: vi.fn().mockResolvedValue([
+      {
+        id: '1',
+        name: 'Hambúrguer',
+        price: 25.9,
+        category: 1,
+      },
+    ]),
+  };
 });
+
+// afterEach(() => {
+//   vi.restoreAllMocks();
+// });
 
 describe('validateProduct', () => {
   it.each([
@@ -63,20 +78,19 @@ describe('getProductById', () => {
 });
 
 describe('getProducts', () => {
-  it('should return a list of all products', () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    createProduct(product);
+  it('should return a list of all products', async () => {
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
 
-    const products = getProducts();
+    const products = await getProducts();
 
     expect(products).toEqual(expect.any(Array));
     expect(products).toContainEqual(expect.objectContaining(product));
   });
 
-  it('should return an empty list when there are no products', () => {
-    vi.spyOn(productsRepository, 'getProductsRepository').mockReturnValue([]);
+  it('should return an empty list when there are no products', async () => {
+    vi.spyOn(productsRepository, 'getProductsRepository').mockResolvedValue([]);
 
-    const products = getProducts();
+    const products = await getProducts();
 
     expect(products).toEqual(expect.any(Array));
     expect(products).toHaveLength(0);

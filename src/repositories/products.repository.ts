@@ -1,5 +1,6 @@
-import type { CreateProductInput, Product } from '../types/product.js';
+import type { CreateProductInput, Product, ProductRow } from '../types/product.js';
 import crypto from 'node:crypto';
+import { pool } from '../database/pool.js';
 
 const products: Product[] = [];
 
@@ -13,8 +14,17 @@ export const saveProduct = (product: CreateProductInput): Product => {
   return newProduct;
 };
 
-export const getProductsRepository = (): Product[] => {
-  return [...products];
+export const getProductsRepository = async (): Promise<Product[]> => {
+  const result = await pool.query<ProductRow>(
+    'SELECT id, name, price, category_id, created_at FROM products',
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    price: Number(row.price),
+    category: row.category_id,
+  }));
 };
 
 export const getProductByIdRepository = (id: string): Product | undefined => {

@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: food-project-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: food_project
+      POSTGRES_USER: food_user
+      POSTGRES_PASSWORD: food_dev_password
+    ports:
+      - '5433:5432'
+    volumes:
+      - food_project_data:/var/lib/postgresql/data
+
+volumes:
+  food_project_data:
