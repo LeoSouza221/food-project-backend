@@ -20,7 +20,7 @@ vi.mock('../services/product.service.js', async (importOriginal) => {
       if (id === '1') {
         return { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
       }
-      return null;
+      throw new Error('Product not found');
     }),
   };
 });
@@ -40,7 +40,7 @@ describe('listProductByIdController', () => {
     await listProductByIdController(res, product.id);
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalled(); // optionally check if the response ended
-    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ product: product }));
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ product }));
   });
 
   it('should return 404 when the product does not exist', async () => {
@@ -49,7 +49,7 @@ describe('listProductByIdController', () => {
       end: vi.fn(),
     } as unknown as ServerResponse;
 
-    vi.spyOn(productService, 'getProductById').mockRejectedValue(new Error('Product not found'));
+    vi.mocked(productService.getProductById).mockRejectedValueOnce(new Error('Product not found'));
     await listProductByIdController(res, 'non-existing-id');
 
     expect(res.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
@@ -66,6 +66,21 @@ describe('listProductByIdController', () => {
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product ID is required' }));
+  });
+
+  it('should return 500 when there is an internal server error', async () => {
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    } as unknown as ServerResponse;
+
+    vi.mocked(productService.getProductById).mockRejectedValueOnce(
+      new Error('Internal Server Error'),
+    );
+    await listProductByIdController(res, '1');
+
+    expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
   });
 });
 
@@ -93,7 +108,7 @@ describe('listProductsController', () => {
       end: vi.fn(),
     } as unknown as ServerResponse;
 
-    vi.spyOn(productService, 'getProducts').mockResolvedValue([]);
+    vi.mocked(productService.getProducts).mockResolvedValue([]);
     await listProductsController(res);
 
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
@@ -106,7 +121,7 @@ describe('listProductsController', () => {
       end: vi.fn(),
     } as unknown as ServerResponse;
 
-    vi.spyOn(productService, 'getProducts').mockRejectedValue(new Error('Internal Server Error'));
+    vi.mocked(productService.getProducts).mockRejectedValueOnce(new Error('Internal Server Error'));
     await listProductsController(res);
 
     expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });

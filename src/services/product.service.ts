@@ -47,14 +47,8 @@ export const getProducts = (): Promise<Product[]> => {
   return getProductsRepository();
 };
 
-export const getProductById = async (id: string): Promise<Product> => {
-  const product = await getProductByIdRepository(id);
-
-  if (!product) {
-    throw new Error('Product not found');
-  }
-
-  return product;
+export const getProductById = (id: string): Promise<Product> => {
+  return getProductByIdRepository(id);
 };
 
 const isUpdateObject = (value: unknown): value is Record<string, unknown> => {

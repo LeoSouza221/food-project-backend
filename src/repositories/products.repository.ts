@@ -41,7 +41,7 @@ export const getProductsRepository = async (): Promise<Product[]> => {
   }));
 };
 
-export const getProductByIdRepository = async (id: string): Promise<Product | undefined> => {
+export const getProductByIdRepository = async (id: string): Promise<Product> => {
   const query = 'SELECT id, name, price, category_id, created_at FROM products WHERE id = $1';
   const result = await pool.query<ProductRow>(query, [id]);
   const row = result.rows[0];

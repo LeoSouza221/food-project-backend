@@ -29,9 +29,14 @@ export const listProductByIdController = async (res: ServerResponse, productId: 
     const product: Product = await getProductById(productId);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ product }));
-  } catch {
-    res.writeHead(404, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Product not found' }));
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Product not found') {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Product not found' }));
+    }
+
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Internal Server Error' }));
   }
 };
 
@@ -53,7 +58,7 @@ export const createProductController = async (req: IncomingMessage, res: ServerR
     try {
       const product = await createProduct(parsedBody);
       res.writeHead(201, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ message: 'Product received', body: product }));
+      return res.end(JSON.stringify({ message: 'Product created', product }));
     } catch {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Invalid product data' }));

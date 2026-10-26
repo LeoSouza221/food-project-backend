@@ -33,7 +33,7 @@ vi.mock('../repositories/products.repository.js', async (importOriginal) => {
           category: 1,
         };
       }
-      return null;
+      throw new Error('Product not found');
     }),
   };
 });
@@ -82,7 +82,7 @@ describe('getProductById', () => {
     const retrievedProduct = await getProductById(createdProduct.id);
 
     expect(retrievedProduct).toEqual(createdProduct);
-    expect(retrievedProduct?.id).toBe(createdProduct.id);
+    expect(retrievedProduct.id).toBe(createdProduct.id);
   });
 
   it('should throw an error for a non-existent product ID', async () => {
@@ -103,7 +103,7 @@ describe('getProducts', () => {
   });
 
   it('should return an empty list when there are no products', async () => {
-    vi.spyOn(productsRepository, 'getProductsRepository').mockResolvedValue([]);
+    vi.mocked(productsRepository.getProductsRepository).mockResolvedValue([]);
 
     const products = await getProducts();
 

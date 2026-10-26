@@ -93,12 +93,23 @@ describe('getProductsRepository', () => {
 
 describe('getProductByIdRepository', () => {
   it('should retrieve a product by its ID successfully', async () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = await saveProductRepository(product);
-    const retrievedProduct = await getProductByIdRepository(savedProduct.id);
+    const product = { name: 'Hambúrguer', price: '25.9', category_id: 1, id: '1' };
+    const expectedProduct = {
+      id: product.id,
+      category: product.category_id,
+      name: product.name,
+      price: Number(product.price),
+    };
+    vi.mocked(pool.query).mockImplementationOnce(async () => ({ rows: [product] }));
 
-    expect(retrievedProduct).toEqual(savedProduct);
-    expect(retrievedProduct?.id).toBe(savedProduct.id);
+    const retrievedProduct = await getProductByIdRepository(product.id);
+
+    expect(retrievedProduct).toEqual(expectedProduct);
+    expect(retrievedProduct.id).toBe(product.id);
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT id, name, price, category_id, created_at FROM products WHERE id = $1',
+      [product.id],
+    );
   });
 
   it('should throw an error for a non-existent product ID', async () => {
