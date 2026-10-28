@@ -64,9 +64,7 @@ describe('getCategoriesRepository', () => {
 
     expect(Array.isArray(categories)).toBe(true);
     expect(categories).toContainEqual(category);
-    expect(pool.query).toHaveBeenCalledWith(
-      'SELECT id, name, created_at FROM categories',
-    );
+    expect(pool.query).toHaveBeenCalledWith('SELECT id, name, created_at FROM categories');
   });
 
   it('should return an empty array when no categories exist', async () => {
@@ -102,10 +100,22 @@ describe('getCategoryByIdRepository', () => {
 describe('updateCategoryRepository', () => {
   it('should update a category successfully', async () => {
     const updatedData = { name: 'Bebidas' };
+    const created_at = new Date().toISOString();
+
+    mockQuery
+      .mockImplementationOnce(async () => ({ rows: [{ id: 1, name: 'Lanches', created_at }] }))
+      .mockImplementationOnce(async () => ({
+        rows: [{ id: 1, name: updatedData.name, created_at }],
+      }));
+
     const updatedCategory = await updateCategoryRepository(1, updatedData);
 
     expect(updatedCategory).toMatchObject(updatedData);
     expect(updatedCategory.id).toBe(1);
+    expect(pool.query).toHaveBeenLastCalledWith(
+      'UPDATE categories SET name = $1 WHERE id = $2 RETURNING id, name, created_at;',
+      [updatedData.name, 1],
+    );
   });
 
   it('should fall back to the existing name when no name is provided', async () => {
