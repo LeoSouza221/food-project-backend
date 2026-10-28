@@ -58,18 +58,30 @@ export const getProductByIdRepository = async (id: string): Promise<Product> => 
   throw new Error('Product not found.');
 };
 
-export const updateProductRepository = (
+export const updateProductRepository = async (
   id: string,
   updates: Partial<CreateProductInput>,
-): Product | undefined => {
-  const productIndex = products.findIndex((product) => product.id === id);
-  const existingProduct = products[productIndex];
+): Promise<Product> => {
+  const query = `
+    UPDATE products
+    SET name = COALESCE($1, name),
+        price = COALESCE($2, price),
+        category_id = COALESCE($3, category_id)
+    WHERE id = $4
+    RETURNING id, name, price, category_id, created_at;
+  `;
+  const values = [updates.name, updates.price, updates.category, id];
+  const { rows } = await pool.query<ProductRow>(query, values);
+  const updatedProduct = rows[0];
 
-  if (productIndex === -1 || !existingProduct) {
-    return undefined;
+  if (!updatedProduct) {
+    throw new Error('Product not found.');
   }
 
-  const updatedProduct: Product = { ...existingProduct, ...updates };
-  products[productIndex] = updatedProduct;
-  return updatedProduct;
+  return {
+    id: updatedProduct.id,
+    name: updatedProduct.name,
+    price: Number(updatedProduct.price),
+    category: updatedProduct.category_id,
+  };
 };
