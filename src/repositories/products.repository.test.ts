@@ -100,7 +100,7 @@ describe('getProductByIdRepository', () => {
       name: product.name,
       price: Number(product.price),
     };
-    vi.mocked(pool.query).mockImplementationOnce(async () => ({ rows: [product] }));
+    mockQuery.mockImplementationOnce(async () => ({ rows: [product] }));
 
     const retrievedProduct = await getProductByIdRepository(product.id);
 
@@ -115,41 +115,70 @@ describe('getProductByIdRepository', () => {
   it('should throw an error for a non-existent product ID', async () => {
     const id = crypto.randomUUID();
 
-    vi.mocked(pool.query).mockImplementationOnce(async () => ({ rows: [] }));
+    mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
     await expect(getProductByIdRepository(id)).rejects.toThrow('Product not found.');
   });
 });
 
-describe.skip('updateProductRepository', () => {
+describe('updateProductRepository', () => {
   it('should update a product successfully', async () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const savedProduct = await saveProductRepository(product);
+    const productId = '1';
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
-    const updatedProduct = await updateProductRepository(savedProduct.id, updatedData);
+
+    mockQuery.mockImplementationOnce(async () => ({
+      rows: [
+        {
+          id: productId,
+          name: updatedData.name,
+          price: String(updatedData.price),
+          category_id: updatedData.category,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    }));
+    const updatedProduct = await updateProductRepository(productId, updatedData);
 
     expect(updatedProduct).toMatchObject(updatedData);
-    expect(updatedProduct?.id).toBe(savedProduct.id);
+    expect(updatedProduct?.id).toBe(productId);
 
-    const retrievedProduct = await getProductByIdRepository(savedProduct.id);
-    expect(retrievedProduct).toEqual(updatedProduct);
+    expect(mockQuery).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /UPDATE products[\s\S]*RETURNING id, name, price, category_id, created_at/,
+      ),
+      ['X-Salada', 10, 1, productId],
+    );
   });
 
   it.each([[{ price: 35.9 }], [{ category: 2 }], [{ name: 'Hambúrguer' }]])(
     'should update just the provided fields %1',
     async (updatedData: { name?: string; price?: number; category?: number }) => {
-      const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-      const savedProduct = await saveProductRepository(product);
-      const updatedProduct = await updateProductRepository(savedProduct.id, updatedData);
+      const productId = '1';
+      const savedProduct = {
+        id: productId,
+        name: updatedData.name ?? 'Hambúrguer',
+        price: updatedData.price ?? 25.9,
+        category_id: updatedData.category ?? 1,
+        created_at: new Date().toISOString(),
+      };
+      mockQuery.mockImplementationOnce(async () => ({
+        rows: [savedProduct],
+      }));
+      const updatedProduct = await updateProductRepository(productId, updatedData);
+      const expectedProduct = {
+        id: productId,
+        name: updatedData.name ?? 'Hambúrguer',
+        price: updatedData.price ?? Number(String(25.9)),
+        category: updatedData.category ?? 1,
+      };
 
-      const expectedProduct = { ...savedProduct, ...updatedData };
       expect(updatedProduct).toEqual(expectedProduct);
     },
   );
 
-  it('should return undefined for a non-existent product ID', () => {
+  it('should throw an error for a non-existent product ID', async () => {
     const id = crypto.randomUUID();
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
-    const updatedProduct = updateProductRepository(id, updatedData);
-    expect(updatedProduct).toBeUndefined();
+    mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
+    await expect(updateProductRepository(id, updatedData)).rejects.toThrow('Product not found.');
   });
 });
