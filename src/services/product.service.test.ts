@@ -7,6 +7,7 @@ import {
   updateProduct,
 } from './product.service.js';
 import * as productsRepository from '../repositories/products.repository.js';
+import { updateProductRepository } from '../repositories/products.repository.js';
 
 vi.mock('../repositories/products.repository.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../repositories/products.repository.js')>();
@@ -35,12 +36,23 @@ vi.mock('../repositories/products.repository.js', async (importOriginal) => {
       }
       throw new Error('Product not found');
     }),
+    updateProductRepository: vi.fn().mockImplementation(async (id, updates) => {
+      if (id === '1') {
+        return {
+          id: '1',
+          name: updates.name ?? 'Hambúrguer',
+          price: updates.price ?? 25.9,
+          category: updates.category ?? 1,
+        };
+      }
+      throw new Error('Product not found');
+    }),
   };
 });
 
-// afterEach(() => {
-//   vi.restoreAllMocks();
-// });
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('validateProduct', () => {
   it.each([
@@ -112,22 +124,22 @@ describe('getProducts', () => {
   });
 });
 
-describe.skip('updateProduct', () => {
+describe('updateProduct', () => {
   it('should update a product successfully', async () => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = await createProduct(product);
+    const productId = '1';
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
-    const updatedProduct = await updateProduct(createdProduct.id, updatedData);
+    const updatedProduct = await updateProduct(productId, updatedData);
 
     expect(updatedProduct).toMatchObject(updatedData);
-    expect(updatedProduct?.id).toBe(createdProduct.id);
+    expect(updatedProduct.id).toBe(productId);
+    expect(vi.mocked(updateProductRepository)).toHaveBeenCalledWith(productId, updatedData);
   });
 
-  it('should throw an error for a non-existent product ID', () => {
+  it('should throw an error for a non-existent product ID', async () => {
     const id = 'non-existent-id';
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
 
-    expect(() => updateProduct(id, updatedData)).toThrow('Product not found or update failed');
+    await expect(updateProduct(id, updatedData)).rejects.toThrow('Product not found');
   });
 
   it.each([
@@ -144,22 +156,21 @@ describe.skip('updateProduct', () => {
     [{ category: NaN }],
     [{ name: '         ' }],
   ])('should throw an error when the updated data is invalid', (updatedData) => {
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
-
-    expect(() => updateProduct(createdProduct.id, updatedData)).toThrow(
-      'Invalid product update data',
-    );
+    expect(() => updateProduct('1', updatedData)).toThrow('Invalid product update data');
   });
 
   it.each([[{ price: 39.9 }], [{ category: 2 }], [{ name: 'Hambúrguer' }]])(
     'should update just the provided fields',
-    (updatedData) => {
-      const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-      const createdProduct = createProduct(product);
-      const updatedProduct = updateProduct(createdProduct.id, updatedData);
+    async (updatedData: { name?: string; price?: number; category?: number }) => {
+      const productId = '1';
+      const updatedProduct = await updateProduct(productId, updatedData);
 
-      const expectedProduct = { ...createdProduct, ...updatedData };
+      const expectedProduct = {
+        id: productId,
+        name: updatedData.name ?? 'Hambúrguer',
+        price: updatedData.price ?? 25.9,
+        category: updatedData.category ?? 1,
+      };
       expect(updatedProduct).toEqual(expectedProduct);
     },
   );

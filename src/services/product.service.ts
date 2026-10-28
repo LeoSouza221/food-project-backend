@@ -87,16 +87,10 @@ const validateProductUpdate = (updates: unknown): updates is Partial<CreateProdu
   return true;
 };
 
-export const updateProduct = (id: string, updates: unknown): Product => {
+export const updateProduct = (id: string, updates: unknown): Promise<Product> => {
   if (!validateProductUpdate(updates)) {
     throw new Error('Invalid product update data');
   }
 
-  const updatedProduct = updateProductRepository(id, updates);
-
-  if (!updatedProduct) {
-    throw new Error('Product not found or update failed');
-  }
-
-  return updatedProduct;
+  return updateProductRepository(id, updates);
 };
