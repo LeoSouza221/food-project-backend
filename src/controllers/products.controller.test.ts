@@ -1,12 +1,12 @@
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
   listProductByIdController,
   listProductsController,
   updateProductController,
 } from './products.controller.js';
-import { createProduct } from '../services/product.service.js';
+import { createProduct, updateProduct } from '../services/product.service.js';
 import * as productService from '../services/product.service.js';
 
 vi.mock('../services/product.service.js', async (importOriginal) => {
@@ -22,11 +22,31 @@ vi.mock('../services/product.service.js', async (importOriginal) => {
       }
       throw new Error('Product not found');
     }),
+    updateProduct: vi.fn().mockImplementation(async (id, updates) => {
+      if (id === '1') {
+        return {
+          id: '1',
+          name: updates.name ?? 'Hambúrguer',
+          price: updates.price ?? 25.9,
+          category: updates.category ?? 1,
+        };
+      }
+      throw new Error('Product not found.');
+    }),
   };
 });
 
+let resolveResponse!: () => void;
+let responseEnded: Promise<void>;
+
+beforeEach(() => {
+  responseEnded = new Promise<void>((resolve) => {
+    resolveResponse = resolve;
+  });
+});
+
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });
 
 describe('listProductByIdController', () => {
@@ -129,21 +149,21 @@ describe('listProductsController', () => {
   });
 });
 
-describe.skip('updateProductController', () => {
-  it('should update a product successfully', () => {
+describe('updateProductController', () => {
+  it('should update a product successfully', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
+    const productId = '1';
     const req = new EventEmitter() as IncomingMessage;
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
 
-    updateProductController(req, res, createdProduct.id);
+    await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
+    await responseEnded;
 
     const responseBody = res.end.mock.calls[0][0];
     const parsedResponse = JSON.parse(responseBody);
@@ -151,24 +171,26 @@ describe.skip('updateProductController', () => {
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
     expect(parsedResponse).toEqual({
       message: 'Product updated',
-      body: expect.objectContaining(updatedData),
+      product: expect.objectContaining(updatedData),
     });
+    expect(vi.mocked(updateProduct)).toHaveBeenCalledWith(productId, updatedData);
   });
 
-  it('should update a product partially', () => {
+  it('should update a product partially', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
+    const productId = '1';
     const req = new EventEmitter() as IncomingMessage;
     const updatedData = { price: 15.0 };
 
-    updateProductController(req, res, createdProduct.id);
+    await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
+    await responseEnded;
 
     const responseBody = res.end.mock.calls[0][0];
     const parsedResponse = JSON.parse(responseBody);
@@ -176,11 +198,11 @@ describe.skip('updateProductController', () => {
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
     expect(parsedResponse).toEqual({
       message: 'Product updated',
-      body: expect.objectContaining({ ...product, ...updatedData }),
+      product: expect.objectContaining({ ...product, ...updatedData }),
     });
   });
 
-  it('should return 400 when the product ID is missing', () => {
+  it('should return 400 when the product ID is missing', async () => {
     const res = {
       writeHead: vi.fn(),
       end: vi.fn(),
@@ -188,46 +210,49 @@ describe.skip('updateProductController', () => {
     const req = new EventEmitter() as IncomingMessage;
     const id = '';
 
-    updateProductController(req, res, id);
+    await updateProductController(req, res, id);
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product ID is required' }));
   });
 
-  it('should return 404 for a non-existent product ID', () => {
+  it('should return 404 for a non-existent product ID', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
     const id = 'non-existent-id';
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
-    updateProductController(req, res, id);
+    await updateProductController(req, res, id);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
+    await responseEnded;
 
     expect(res.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
-    expect(res.end).toHaveBeenCalledWith(
-      JSON.stringify({ error: 'Product not found or update failed' }),
-    );
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product not found' }));
   });
 
-  it('should return 400 when the updated name is empty', () => {
+  it('should return 400 when the updated name is empty', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
+    const productId = '1';
     const updatedData = { name: '', price: 10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
-    updateProductController(req, res, createdProduct.id);
+    vi.mocked(updateProduct).mockRejectedValueOnce(
+      new Error('Invalid product data or update failed'),
+    );
+
+    await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
+    await responseEnded;
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(
@@ -235,20 +260,24 @@ describe.skip('updateProductController', () => {
     );
   });
 
-  it('should return 400 when the updated price is negative', () => {
+  it('should return 400 when the updated price is negative', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
+    const productId = '1';
     const updatedData = { name: 'Hambúrguer', price: -10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
-    updateProductController(req, res, createdProduct.id);
+    vi.mocked(updateProduct).mockRejectedValueOnce(
+      new Error('Invalid product data or update failed'),
+    );
+
+    await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
+    await responseEnded;
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(
@@ -256,20 +285,22 @@ describe.skip('updateProductController', () => {
     );
   });
 
-  it('should return 400 when the updated category is invalid', () => {
+  it('should return 400 when the updated category is invalid', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
+    const productId = '1';
     const updatedData = { name: 'Hambúrguer', price: 10.0, category: -1 };
     const req = new EventEmitter() as IncomingMessage;
-
-    updateProductController(req, res, createdProduct.id);
+    vi.mocked(updateProduct).mockRejectedValueOnce(
+      new Error('Invalid product data or update failed'),
+    );
+    await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
+    await responseEnded;
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(
@@ -277,19 +308,19 @@ describe.skip('updateProductController', () => {
     );
   });
 
-  it('should return 400 when the request body contains invalid JSON', () => {
+  it('should return 400 when the request body contains invalid JSON', async () => {
     const res = {
       writeHead: vi.fn(),
-      end: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const createdProduct = createProduct(product);
+    const productId = '1';
     const req = new EventEmitter() as IncomingMessage;
 
-    updateProductController(req, res, createdProduct.id);
+    await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from('{ price: }'));
     req.emit('end');
+    await responseEnded;
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid JSON' }));

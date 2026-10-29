@@ -30,7 +30,9 @@ export const listProductByIdController = async (res: ServerResponse, productId: 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ product }));
   } catch (error) {
-    if (error instanceof Error && error.message === 'Product not found') {
+    console.log('aquui', error);
+
+    if (error instanceof Error && error.message === 'Product not found.') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Product not found' }));
     }
@@ -82,7 +84,7 @@ export const updateProductController = (
   });
   let parsedBody: unknown;
 
-  req.on('end', () => {
+  req.on('end', async () => {
     try {
       parsedBody = JSON.parse(body);
     } catch {
@@ -91,13 +93,13 @@ export const updateProductController = (
     }
 
     try {
-      const updatedProduct = updateProduct(productId, parsedBody);
+      const updatedProduct = await updateProduct(productId, parsedBody);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ message: 'Product updated', body: updatedProduct }));
+      return res.end(JSON.stringify({ message: 'Product updated', product: updatedProduct }));
     } catch (error) {
-      if (error instanceof Error && error.message === 'Product not found or update failed') {
+      if (error instanceof Error && error.message === 'Product not found.') {
         res.writeHead(404, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: 'Product not found or update failed' }));
+        return res.end(JSON.stringify({ error: 'Product not found' }));
       }
 
       res.writeHead(400, { 'Content-Type': 'application/json' });
