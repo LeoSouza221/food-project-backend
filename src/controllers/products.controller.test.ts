@@ -69,11 +69,26 @@ describe('listProductByIdController', () => {
       end: vi.fn(),
     } as unknown as ServerResponse;
 
-    vi.mocked(productService.getProductById).mockRejectedValueOnce(new Error('Product not found'));
-    await listProductByIdController(res, 'non-existing-id');
+    vi.mocked(productService.getProductById).mockRejectedValueOnce(new Error('Product not found.'));
+    await listProductByIdController(res, '00000000-0000-0000-0000-000000000000');
 
     expect(res.writeHead).toHaveBeenCalledWith(404, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product not found' }));
+  });
+
+  it('should return 500 when there is an internal server error', async () => {
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    } as unknown as ServerResponse;
+
+    vi.mocked(productService.getProductById).mockRejectedValueOnce(
+      new Error('Internal Server Error'),
+    );
+    await listProductByIdController(res, 'non-existing-id');
+
+    expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
   });
 
   it('should return 400 when the product ID is invalid', async () => {

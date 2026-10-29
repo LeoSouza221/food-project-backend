@@ -1,15 +1,36 @@
 import { createApp } from './app.js';
 import { beforeAll, beforeEach, afterAll, expect, it, describe } from 'vitest';
 import { clearProducts } from './repositories/products.repository.js';
+import { pool } from './database/pool.js';
 
-beforeEach(() => {
-  clearProducts();
+const createTestCategory = async () => {
+  await pool.query(
+    `INSERT INTO categories (name)
+     VALUES ($1)
+     ON CONFLICT DO NOTHING`,
+    ['Categoria de teste'],
+  );
+};
+
+beforeEach(async () => {
+  await clearProducts();
 });
 
 const app = createApp();
 let port: number;
 
+let categoryId: number;
+
 beforeAll(async () => {
+  const result = await pool.query(
+    `INSERT INTO categories (name)
+     VALUES ($1)
+     RETURNING id`,
+    ['Categoria de teste'],
+  );
+
+  categoryId = result.rows[0].id;
+
   await new Promise<void>((resolve) => {
     app.listen(0, resolve);
   });
@@ -36,6 +57,8 @@ afterAll(async () => {
 
 describe('App', () => {
   it('should fetch /health', async () => {
+    const result = await pool.query('SELECT current_database()');
+    console.log(result.rows[0].current_database);
     const response = await fetch(`http://localhost:${port}/health`);
 
     expect(response.ok).toBe(true);
@@ -48,7 +71,7 @@ describe('App', () => {
   });
 
   it('should create /products', async () => {
-    const product = { name: 'Test Product', price: 10, category: 1 };
+    const product = { name: 'Test Product', price: 10, category: categoryId };
     const response = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
       headers: {
@@ -61,10 +84,10 @@ describe('App', () => {
 
     const data = await response.json();
 
-    expect(data.body.id).toEqual(expect.any(String));
+    expect(data.product.id).toEqual(expect.any(String));
     expect(data).toEqual({
-      message: 'Product received',
-      body: expect.objectContaining(product),
+      message: 'Product created',
+      product: expect.objectContaining(product),
     });
   });
 
@@ -102,7 +125,7 @@ describe('App', () => {
     expect(createResponse.status).toBe(201);
 
     const createdData = await createResponse.json();
-    const productId = createdData.body.id;
+    const productId = createdData.product.id;
 
     const response = await fetch(`http://localhost:${port}/products/${productId}`);
     expect(response.status).toBe(200);
@@ -115,7 +138,9 @@ describe('App', () => {
   });
 
   it('should fail to fetch a product with invalid id', async () => {
-    const response = await fetch(`http://localhost:${port}/products/invalid-id`);
+    const invalidId = '00000000-0000-0000-0000-000000000000';
+    const response = await fetch(`http://localhost:${port}/products/${invalidId}`);
+
     expect(response.status).toBe(404);
 
     const data = await response.json();
@@ -124,7 +149,18 @@ describe('App', () => {
     });
   });
 
-  it.skip('should update a product by id', async () => {
+  it('should fail to fetch a product with invalid uuid', async () => {
+    const response = await fetch(`http://localhost:${port}/products/invalid-id`);
+
+    expect(response.status).toBe(500);
+
+    const data = await response.json();
+    expect(data).toEqual({
+      error: 'Internal Server Error',
+    });
+  });
+
+  it('should update a product by id', async () => {
     const product = { name: 'Test Product', price: 10, category: 1 };
     const createResponse = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
@@ -137,7 +173,7 @@ describe('App', () => {
     expect(createResponse.status).toBe(201);
 
     const createdData = await createResponse.json();
-    const productId = createdData.body.id;
+    const productId = createdData.product.id;
 
     const updatedProduct = { name: 'Updated Product' };
     const updateResponse = await fetch(`http://localhost:${port}/products/${productId}`, {
@@ -153,9 +189,9 @@ describe('App', () => {
     const data = await updateResponse.json();
     expect(data).toEqual({
       message: 'Product updated',
-      body: expect.objectContaining(updatedProduct),
+      product: expect.objectContaining(updatedProduct),
     });
-    expect(data.body.id).toEqual(productId);
+    expect(data.product.id).toEqual(productId);
 
     const productUpdated = await fetch(`http://localhost:${port}/products/${productId}`);
     const productUpdatedData = await productUpdated.json();
@@ -172,7 +208,8 @@ describe('App', () => {
 
   it('should fail to update a product with invalid id', async () => {
     const updatedProduct = { name: 'Updated Product' };
-    const response = await fetch(`http://localhost:${port}/products/invalid-id`, {
+    const invalidId = '00000000-0000-0000-0000-000000000000';
+    const response = await fetch(`http://localhost:${port}/products/${invalidId}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -184,7 +221,7 @@ describe('App', () => {
 
     const data = await response.json();
     expect(data).toEqual({
-      error: 'Product not found or update failed',
+      error: 'Product not found',
     });
   });
 
@@ -201,7 +238,7 @@ describe('App', () => {
     expect(createResponse.status).toBe(201);
 
     const createdData = await createResponse.json();
-    const productId = createdData.body.id;
+    const productId = createdData.product.id;
 
     const invalidUpdate = { price: -10 };
     const response = await fetch(`http://localhost:${port}/products/${productId}`, {

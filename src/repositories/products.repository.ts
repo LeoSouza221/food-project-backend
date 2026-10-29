@@ -1,10 +1,8 @@
 import type { CreateProductInput, Product, ProductRow } from '../types/product.js';
 import { pool } from '../database/pool.js';
 
-const products: Product[] = [];
-
-export const clearProducts = () => {
-  products.length = 0;
+export const clearProducts = async (): Promise<void> => {
+  await pool.query('DELETE FROM products');
 };
 
 export const saveProductRepository = async (product: CreateProductInput): Promise<Product> => {

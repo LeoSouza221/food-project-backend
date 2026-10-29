@@ -30,8 +30,6 @@ export const listProductByIdController = async (res: ServerResponse, productId: 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ product }));
   } catch (error) {
-    console.log('aquui', error);
-
     if (error instanceof Error && error.message === 'Product not found.') {
       res.writeHead(404, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: 'Product not found' }));
