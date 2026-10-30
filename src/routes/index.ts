@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { categoriesRoutes } from './categories.routes.js';
 import { productsRoutes } from './products.routes.js';
 
 export const routes = (req: IncomingMessage, res: ServerResponse) => {
@@ -51,6 +52,10 @@ export const routes = (req: IncomingMessage, res: ServerResponse) => {
 
   if (segments[0] === 'products') {
     return productsRoutes(req, res, segments);
+  }
+
+  if (segments[0] === 'categories') {
+    return categoriesRoutes(req, res, segments);
   }
 
   res.writeHead(404, { 'Content-Type': 'application/json' });

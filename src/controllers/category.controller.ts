@@ -7,6 +7,8 @@ import {
   deleteCategory,
 } from '../services/category.service.js';
 
+const isValidCategoryId = (id: number) => Number.isInteger(id) && id > 0 && id <= 2_147_483_647;
+
 export const listCategoriesController = async (res: ServerResponse) => {
   try {
     const categories = await getCategories();
@@ -25,7 +27,7 @@ export const getCategoryByIdController = async (res: ServerResponse, categoryId:
   }
 
   const id = Number(categoryId);
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isValidCategoryId(id)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Invalid category ID' }));
   }
@@ -64,9 +66,14 @@ export const createCategoryController = async (req: IncomingMessage, res: Server
       const category = await createCategory(parsedBody);
       res.writeHead(201, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ message: 'Category created', category }));
-    } catch {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Invalid category data' }));
+    } catch (error) {
+      if (error instanceof Error && error.message === 'Invalid category data') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid category data' }));
+      }
+
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Internal Server Error' }));
     }
   });
 };
@@ -82,7 +89,7 @@ export const updateCategoryController = (
   }
 
   const id = Number(categoryId);
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isValidCategoryId(id)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Invalid category ID' }));
   }
@@ -111,8 +118,13 @@ export const updateCategoryController = (
         return res.end(JSON.stringify({ error: 'Category not found' }));
       }
 
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Invalid category data or update failed' }));
+      if (error instanceof Error && error.message === 'Invalid category update data') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid category data or update failed' }));
+      }
+
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Internal Server Error' }));
     }
   });
 };
@@ -124,7 +136,7 @@ export const deleteCategoryController = async (res: ServerResponse, categoryId: 
   }
 
   const id = Number(categoryId);
-  if (!Number.isInteger(id) || id <= 0) {
+  if (!isValidCategoryId(id)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Invalid category ID' }));
   }

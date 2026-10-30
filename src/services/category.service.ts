@@ -7,12 +7,13 @@ import {
 } from '../repositories/categories.repository.js';
 import type { CreateCategoryInput, Category } from '../types/category.js';
 
+const isValidCategoryName = (name: unknown): name is string =>
+  typeof name === 'string' && name.trim() !== '' && Array.from(name).length <= 100;
+
 export const validateCategory = (category: unknown): category is CreateCategoryInput => {
-  if (typeof category !== 'object' || category === null) return false;
+  if (typeof category !== 'object' || category === null || Array.isArray(category)) return false;
 
-  if (!('name' in category) || typeof category.name !== 'string') return false;
-
-  return category.name.trim() !== '';
+  return 'name' in category && isValidCategoryName(category.name);
 };
 
 export const createCategory = (category: unknown): Promise<Category> => {
@@ -52,7 +53,7 @@ const validateCategoryUpdate = (updates: unknown): updates is Partial<CreateCate
 
   const { name } = updates;
 
-  if (name !== undefined && (typeof name !== 'string' || !name.trim())) return false;
+  if (name !== undefined && !isValidCategoryName(name)) return false;
 
   return true;
 };

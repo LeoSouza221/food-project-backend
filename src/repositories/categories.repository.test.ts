@@ -134,6 +134,18 @@ describe('updateCategoryRepository', () => {
       'Category not found.',
     );
   });
+
+  it('should throw an error when the category is missing from the update result', async () => {
+    const created_at = new Date().toISOString();
+    mockQuery
+      .mockImplementationOnce(async () => ({ rows: [{ id: 1, name: 'Lanches', created_at }] }))
+      .mockImplementationOnce(async () => emptyResult);
+
+    await expect(updateCategoryRepository(1, { name: 'Bebidas' })).rejects.toThrow(
+      'Category not found.',
+    );
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('deleteCategoryRepository', () => {

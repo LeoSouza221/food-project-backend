@@ -65,6 +65,8 @@ describe('validateCategory', () => {
     [{}],
     [null],
     ['Lanches'],
+    [[{ name: 'Lanches' }]],
+    [{ name: 'a'.repeat(101) }, false],
   ])('should validate category %#', (category, expected = false) => {
     expect(validateCategory(category)).toBe(expected);
   });
@@ -146,6 +148,7 @@ describe('updateCategory', () => {
     [{ name: '         ' }],
     [{ name: 123 }],
     [{ name: null }],
+    [{ name: 'a'.repeat(101) }],
     [{ id: 1 }],
     [{ name: 'Bebidas', id: 2 }],
     [{ name: 'Bebidas', description: 'Drinks' }],
