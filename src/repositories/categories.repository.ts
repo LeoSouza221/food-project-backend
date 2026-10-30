@@ -1,4 +1,5 @@
 import type { Category, CategoryRow, CreateCategoryInput } from '../types/category.js';
+import { CategoryHasProductsError, CategoryNotFoundError } from '../errors/category.errors.js';
 import { pool } from '../database/pool.js';
 
 export const saveCategoryRepository = async (category: CreateCategoryInput): Promise<Category> => {
@@ -38,7 +39,7 @@ export const getCategoryByIdRepository = async (id: number): Promise<Category> =
     };
   }
 
-  throw new Error('Category not found.');
+  throw new CategoryNotFoundError();
 };
 
 export const updateCategoryRepository = async (
@@ -51,7 +52,7 @@ export const updateCategoryRepository = async (
   const row = rows[0];
 
   if (!row) {
-    throw new Error('Category not found.');
+    throw new CategoryNotFoundError();
   }
 
   return {
@@ -71,13 +72,13 @@ export const deleteCategoryRepository = async (id: number): Promise<void> => {
     result = await pool.query(query, [id]);
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error('Category has linked products.', { cause: error });
+      throw new CategoryHasProductsError({ cause: error });
     }
 
     throw error;
   }
 
   if (!result.rowCount) {
-    throw new Error('Category not found.');
+    throw new CategoryNotFoundError();
   }
 };

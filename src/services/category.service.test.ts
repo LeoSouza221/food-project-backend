@@ -1,3 +1,8 @@
+import {
+  CategoryNotFoundError,
+  InvalidCategoryDataError,
+  InvalidCategoryUpdateError,
+} from '../errors/category.errors.js';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   validateCategory,
@@ -31,7 +36,7 @@ vi.mock('../repositories/categories.repository.js', async (importOriginal) => {
           name: 'Lanches',
         };
       }
-      throw new Error('Category not found');
+      throw new CategoryNotFoundError();
     }),
     updateCategoryRepository: vi.fn().mockImplementation(async (id, updates) => {
       if (id === 1) {
@@ -40,11 +45,11 @@ vi.mock('../repositories/categories.repository.js', async (importOriginal) => {
           name: updates.name ?? 'Lanches',
         };
       }
-      throw new Error('Category not found');
+      throw new CategoryNotFoundError();
     }),
     deleteCategoryRepository: vi.fn().mockImplementation(async (id) => {
       if (id !== 1) {
-        throw new Error('Category not found');
+        throw new CategoryNotFoundError();
       }
     }),
   };
@@ -61,7 +66,8 @@ describe('validateCategory', () => {
     [{ name: '         ' }, false],
     [{ name: 123 }, false],
     [{ name: null }, false],
-    [{ name: 'Lanches', description: 'Snacks' }, true],
+    [{ name: 'Lanches', description: 'Snacks' }, false],
+    [{ name: 'Lanches', id: 1 }, false],
     [{}],
     [null],
     ['Lanches'],
@@ -84,7 +90,7 @@ describe('createCategory', () => {
   it('should throw an error when category is invalid', () => {
     const category = { name: '' };
 
-    expect(() => createCategory(category)).toThrow('Invalid category data');
+    expect(() => createCategory(category)).toThrow(InvalidCategoryDataError);
   });
 });
 
@@ -101,7 +107,7 @@ describe('getCategoryById', () => {
   it('should throw an error for a non-existent category ID', async () => {
     const id = 2;
 
-    await expect(getCategoryById(id)).rejects.toThrow('Category not found');
+    await expect(getCategoryById(id)).rejects.toThrow(CategoryNotFoundError);
   });
 });
 
@@ -140,7 +146,7 @@ describe('updateCategory', () => {
     const id = 2;
     const updatedData = { name: 'Bebidas' };
 
-    await expect(updateCategory(id, updatedData)).rejects.toThrow('Category not found');
+    await expect(updateCategory(id, updatedData)).rejects.toThrow(CategoryNotFoundError);
   });
 
   it.each([
@@ -158,7 +164,7 @@ describe('updateCategory', () => {
     ['Bebidas'],
     [null],
   ])('should throw an error when the updated data is invalid', (updatedData) => {
-    expect(() => updateCategory(1, updatedData)).toThrow('Invalid category update data');
+    expect(() => updateCategory(1, updatedData)).toThrow(InvalidCategoryUpdateError);
   });
 
   it('should update just the provided fields', async () => {
@@ -181,6 +187,6 @@ describe('deleteCategory', () => {
   });
 
   it('should throw an error for a non-existent category ID', async () => {
-    await expect(deleteCategory(2)).rejects.toThrow('Category not found');
+    await expect(deleteCategory(2)).rejects.toThrow(CategoryNotFoundError);
   });
 });

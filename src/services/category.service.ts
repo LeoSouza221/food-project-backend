@@ -5,20 +5,26 @@ import {
   updateCategoryRepository,
   deleteCategoryRepository,
 } from '../repositories/categories.repository.js';
+import { InvalidCategoryDataError, InvalidCategoryUpdateError } from '../errors/category.errors.js';
 import type { CreateCategoryInput, Category } from '../types/category.js';
+
+const allowedCategoryKeys = ['name'];
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const hasOnlyAllowedKeys = (value: Record<string, unknown>): boolean =>
+  Object.keys(value).every((key) => allowedCategoryKeys.includes(key));
 
 const isValidCategoryName = (name: unknown): name is string =>
   typeof name === 'string' && name.trim() !== '' && Array.from(name).length <= 100;
 
-export const validateCategory = (category: unknown): category is CreateCategoryInput => {
-  if (typeof category !== 'object' || category === null || Array.isArray(category)) return false;
-
-  return 'name' in category && isValidCategoryName(category.name);
-};
+export const validateCategory = (category: unknown): category is CreateCategoryInput =>
+  isPlainObject(category) && hasOnlyAllowedKeys(category) && isValidCategoryName(category.name);
 
 export const createCategory = (category: unknown): Promise<Category> => {
   if (!validateCategory(category)) {
-    throw new Error('Invalid category data');
+    throw new InvalidCategoryDataError();
   }
 
   return saveCategoryRepository(category);
@@ -32,35 +38,15 @@ export const getCategoryById = (id: number): Promise<Category> => {
   return getCategoryByIdRepository(id);
 };
 
-const isUpdateObject = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-};
-
-const hasValidUpdateStructure = (category: unknown): category is Record<string, unknown> => {
-  if (!isUpdateObject(category) || 'id' in category || Object.keys(category).length === 0)
-    return false;
-
-  return true;
-};
-
-const hasInvalidUpdates = (updates: Record<string, unknown>): boolean => {
-  return Object.keys(updates).some((key) => !['name'].includes(key));
-};
-
-const validateCategoryUpdate = (updates: unknown): updates is Partial<CreateCategoryInput> => {
-  if (!hasValidUpdateStructure(updates)) return false;
-  if (hasInvalidUpdates(updates)) return false;
-
-  const { name } = updates;
-
-  if (name !== undefined && !isValidCategoryName(name)) return false;
-
-  return true;
-};
+const validateCategoryUpdate = (updates: unknown): updates is Partial<CreateCategoryInput> =>
+  isPlainObject(updates) &&
+  Object.keys(updates).length > 0 &&
+  hasOnlyAllowedKeys(updates) &&
+  (updates.name === undefined || isValidCategoryName(updates.name));
 
 export const updateCategory = (id: number, updates: unknown): Promise<Category> => {
   if (!validateCategoryUpdate(updates)) {
-    throw new Error('Invalid category update data');
+    throw new InvalidCategoryUpdateError();
   }
 
   return updateCategoryRepository(id, updates);

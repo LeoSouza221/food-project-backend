@@ -150,7 +150,7 @@ describe('Categories API integration', () => {
       body: JSON.stringify({ name: 'Produto vinculado', price: 10, category: category.id }),
     });
     expect(productResponse.status).toBe(201);
-    const product = (await productResponse.json()) as { id: string };
+    const { product } = (await productResponse.json()) as { product: { id: string } };
 
     try {
       const blockedResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
@@ -169,5 +169,63 @@ describe('Categories API integration', () => {
       method: 'DELETE',
     });
     expect(deleteResponse.status).toBe(200);
+  });
+
+  it('accepts a name with 100 characters and rejects one with 101', async () => {
+    const category = await createCategory('a'.repeat(100));
+    expect(category.name).toHaveLength(100);
+
+    const tooLongCreate = await fetch(`${baseUrl}/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'a'.repeat(101) }),
+    });
+    expect(tooLongCreate.status).toBe(400);
+    expect(await tooLongCreate.json()).toEqual({ error: 'Invalid category data' });
+
+    const tooLongUpdate = await fetch(`${baseUrl}/categories/${category.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'b'.repeat(101) }),
+    });
+    expect(tooLongUpdate.status).toBe(400);
+
+    const detail = await fetch(`${baseUrl}/categories/${category.id}`);
+    expect(await detail.json()).toEqual({ category });
+  });
+
+  it('rejects unknown properties on create and update', async () => {
+    const createResponse = await fetch(`${baseUrl}/categories`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Com extra', description: 'não permitido' }),
+    });
+    expect(createResponse.status).toBe(400);
+    expect(await createResponse.json()).toEqual({ error: 'Invalid category data' });
+
+    const category = await createCategory('Sem extra');
+    const updateResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Novo', description: 'não permitido' }),
+    });
+    expect(updateResponse.status).toBe(400);
+  });
+
+  it.each([
+    ['PUT', '/categories'],
+    ['DELETE', '/categories'],
+    ['PATCH', '/categories'],
+    ['PUT', '/categories/1'],
+    ['POST', '/categories/1'],
+  ])('returns an error for %s %s', async (method, path) => {
+    const response = await fetch(`${baseUrl}${path}`, { method });
+    const expectedStatus = method === 'PUT' ? 405 : 400;
+
+    expect(response.status).toBe(expectedStatus);
+    if (expectedStatus === 405) {
+      expect(response.headers.get('allow')).toBe('GET, POST, PATCH, DELETE');
+      expect(await response.json()).toEqual({ error: 'Method Not Allowed' });
+    }
   });
 });

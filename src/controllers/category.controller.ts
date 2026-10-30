@@ -6,6 +6,12 @@ import {
   updateCategory,
   deleteCategory,
 } from '../services/category.service.js';
+import {
+  CategoryHasProductsError,
+  CategoryNotFoundError,
+  InvalidCategoryDataError,
+  InvalidCategoryUpdateError,
+} from '../errors/category.errors.js';
 import { InvalidJsonBodyError, readJsonBody, sendJson } from '../http/json.js';
 
 const isValidCategoryId = (id: number) => Number.isInteger(id) && id > 0 && id <= 2_147_483_647;
@@ -33,7 +39,7 @@ export const getCategoryByIdController = async (res: ServerResponse, categoryId:
     const category = await getCategoryById(id);
     return sendJson(res, 200, { category });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Category not found.') {
+    if (error instanceof CategoryNotFoundError) {
       return sendJson(res, 404, { error: 'Category not found' });
     }
 
@@ -57,7 +63,7 @@ export const createCategoryController = async (req: IncomingMessage, res: Server
     const category = await createCategory(parsedBody);
     return sendJson(res, 201, { message: 'Category created', category });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Invalid category data') {
+    if (error instanceof InvalidCategoryDataError) {
       return sendJson(res, 400, { error: 'Invalid category data' });
     }
 
@@ -94,11 +100,11 @@ export const updateCategoryController = async (
     const category = await updateCategory(id, parsedBody);
     return sendJson(res, 200, { message: 'Category updated', category });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Category not found.') {
+    if (error instanceof CategoryNotFoundError) {
       return sendJson(res, 404, { error: 'Category not found' });
     }
 
-    if (error instanceof Error && error.message === 'Invalid category update data') {
+    if (error instanceof InvalidCategoryUpdateError) {
       return sendJson(res, 400, { error: 'Invalid category data or update failed' });
     }
 
@@ -120,11 +126,11 @@ export const deleteCategoryController = async (res: ServerResponse, categoryId: 
     await deleteCategory(id);
     return sendJson(res, 200, { message: 'Category deleted' });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Category not found.') {
+    if (error instanceof CategoryNotFoundError) {
       return sendJson(res, 404, { error: 'Category not found' });
     }
 
-    if (error instanceof Error && error.message === 'Category has linked products.') {
+    if (error instanceof CategoryHasProductsError) {
       return sendJson(res, 409, { error: 'Category has linked products' });
     }
 

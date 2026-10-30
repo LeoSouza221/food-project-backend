@@ -1,4 +1,5 @@
 import type { CreateProductInput, Product, ProductRow } from '../types/product.js';
+import { CategoryNotFoundError } from '../errors/category.errors.js';
 import { pool } from '../database/pool.js';
 
 const isForeignKeyViolation = (error: unknown): boolean =>
@@ -20,7 +21,7 @@ export const saveProductRepository = async (product: CreateProductInput): Promis
     ({ rows } = await pool.query<ProductRow>(query, values));
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error('Category not found.', { cause: error });
+      throw new CategoryNotFoundError({ cause: error });
     }
 
     throw error;
@@ -86,7 +87,7 @@ export const updateProductRepository = async (
     ({ rows } = await pool.query<ProductRow>(query, values));
   } catch (error) {
     if (isForeignKeyViolation(error)) {
-      throw new Error('Category not found.', { cause: error });
+      throw new CategoryNotFoundError({ cause: error });
     }
 
     throw error;

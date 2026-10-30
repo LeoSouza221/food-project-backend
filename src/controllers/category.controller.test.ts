@@ -1,3 +1,9 @@
+import {
+  CategoryHasProductsError,
+  CategoryNotFoundError,
+  InvalidCategoryDataError,
+  InvalidCategoryUpdateError,
+} from '../errors/category.errors.js';
 import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -123,7 +129,7 @@ describe('getCategoryByIdController', () => {
   });
 
   it('returns 404 when the category does not exist', async () => {
-    vi.mocked(categoryService.getCategoryById).mockRejectedValue(new Error('Category not found.'));
+    vi.mocked(categoryService.getCategoryById).mockRejectedValue(new CategoryNotFoundError());
     const { res } = createResponse();
 
     await getCategoryByIdController(res, '99');
@@ -167,7 +173,7 @@ describe('createCategoryController', () => {
   });
 
   it('returns 400 for invalid category data', async () => {
-    vi.mocked(categoryService.createCategory).mockRejectedValue(new Error('Invalid category data'));
+    vi.mocked(categoryService.createCategory).mockRejectedValue(new InvalidCategoryDataError());
     const res = await sendBody(
       (req, response) => createCategoryController(req, response),
       JSON.stringify({ name: '' }),
@@ -234,9 +240,7 @@ describe('updateCategoryController', () => {
   });
 
   it('returns 400 for invalid update data', async () => {
-    vi.mocked(categoryService.updateCategory).mockRejectedValue(
-      new Error('Invalid category update data'),
-    );
+    vi.mocked(categoryService.updateCategory).mockRejectedValue(new InvalidCategoryUpdateError());
     const res = await sendBody(
       (req, response) => updateCategoryController(req, response, '1'),
       JSON.stringify({ name: '' }),
@@ -249,7 +253,7 @@ describe('updateCategoryController', () => {
   });
 
   it('returns 404 when the category does not exist', async () => {
-    vi.mocked(categoryService.updateCategory).mockRejectedValue(new Error('Category not found.'));
+    vi.mocked(categoryService.updateCategory).mockRejectedValue(new CategoryNotFoundError());
     const res = await sendBody(
       (req, response) => updateCategoryController(req, response, '99'),
       JSON.stringify({ name: 'Bebidas' }),
@@ -302,7 +306,7 @@ describe('deleteCategoryController', () => {
   });
 
   it('returns 404 when the category does not exist', async () => {
-    vi.mocked(categoryService.deleteCategory).mockRejectedValue(new Error('Category not found.'));
+    vi.mocked(categoryService.deleteCategory).mockRejectedValue(new CategoryNotFoundError());
     const { res } = createResponse();
 
     await deleteCategoryController(res, '99');
@@ -312,9 +316,7 @@ describe('deleteCategoryController', () => {
   });
 
   it('returns 409 when the category has linked products', async () => {
-    vi.mocked(categoryService.deleteCategory).mockRejectedValue(
-      new Error('Category has linked products.'),
-    );
+    vi.mocked(categoryService.deleteCategory).mockRejectedValue(new CategoryHasProductsError());
     const { res } = createResponse();
 
     await deleteCategoryController(res, '1');

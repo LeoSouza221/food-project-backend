@@ -1,3 +1,4 @@
+import { CategoryHasProductsError, CategoryNotFoundError } from '../errors/category.errors.js';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   saveCategoryRepository,
@@ -93,7 +94,7 @@ describe('getCategoryByIdRepository', () => {
 
   it('should throw an error for a non-existent category ID', async () => {
     mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
-    await expect(getCategoryByIdRepository(99)).rejects.toThrow('Category not found.');
+    await expect(getCategoryByIdRepository(99)).rejects.toThrow(CategoryNotFoundError);
   });
 });
 
@@ -129,7 +130,7 @@ describe('updateCategoryRepository', () => {
   it('should throw an error for a non-existent category ID', async () => {
     mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
     await expect(updateCategoryRepository(99, { name: 'Bebidas' })).rejects.toThrow(
-      'Category not found.',
+      CategoryNotFoundError,
     );
   });
 });
@@ -144,7 +145,7 @@ describe('deleteCategoryRepository', () => {
 
   it('should throw an error for a non-existent category ID', async () => {
     mockQuery.mockImplementationOnce(async () => ({ rows: [], rowCount: 0 }));
-    await expect(deleteCategoryRepository(99)).rejects.toThrow('Category not found.');
+    await expect(deleteCategoryRepository(99)).rejects.toThrow(CategoryNotFoundError);
   });
 
   it('should throw a linked products error on foreign key violation', async () => {
@@ -153,10 +154,10 @@ describe('deleteCategoryRepository', () => {
       throw fkError;
     });
 
-    await expect(deleteCategoryRepository(1)).rejects.toMatchObject({
-      message: 'Category has linked products.',
-      cause: fkError,
-    });
+    const error = await deleteCategoryRepository(1).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(CategoryHasProductsError);
+    expect((error as Error).cause).toBe(fkError);
   });
 
   it('should rethrow unexpected database errors', async () => {
