@@ -23,9 +23,9 @@ The goal is to build the application incrementally, applying backend architectur
 - [x] Input data validation.
 - [x] Separation of routes, controllers, services, and repositories.
 - [x] Automated tests for the current implementation.
-- [ ] PostgreSQL persistence.
+- [x] PostgreSQL persistence.
 - [ ] User registration and authentication.
-- [ ] Category creation and management.
+- [x] Category creation and management.
 
 ### V2 — Cart and Orders
 
@@ -41,7 +41,7 @@ The goal is to build the application incrementally, applying backend architectur
 - Vitest
 - ESLint
 - Prettier
-- PostgreSQL (planned)
+- PostgreSQL
 - Docker (planned)
 
 ## Prerequisites
