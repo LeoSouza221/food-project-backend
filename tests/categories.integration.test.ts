@@ -141,4 +141,33 @@ describe('Categories API integration', () => {
     expect(detailResponse.status).toBe(404);
     expect(await detailResponse.json()).toEqual({ error: 'Category not found' });
   });
+
+  it('does not delete a category that has linked products', async () => {
+    const category = await createCategory('Categoria com produto');
+    const productResponse = await fetch(`${baseUrl}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Produto vinculado', price: 10, category: category.id }),
+    });
+    expect(productResponse.status).toBe(201);
+    const product = (await productResponse.json()) as { id: string };
+
+    try {
+      const blockedResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
+        method: 'DELETE',
+      });
+      expect(blockedResponse.status).toBe(409);
+      expect(await blockedResponse.json()).toEqual({ error: 'Category has linked products' });
+
+      const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`);
+      expect(detailResponse.status).toBe(200);
+    } finally {
+      await pool.query('DELETE FROM products WHERE id = $1', [product.id]);
+    }
+
+    const deleteResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
+      method: 'DELETE',
+    });
+    expect(deleteResponse.status).toBe(200);
+  });
 });

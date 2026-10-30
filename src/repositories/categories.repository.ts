@@ -45,10 +45,9 @@ export const updateCategoryRepository = async (
   id: number,
   updates: Partial<CreateCategoryInput>,
 ): Promise<Category> => {
-  const existing = await getCategoryByIdRepository(id);
-
-  const query = 'UPDATE categories SET name = $1 WHERE id = $2 RETURNING id, name, created_at;';
-  const { rows } = await pool.query<CategoryRow>(query, [updates.name ?? existing.name, id]);
+  const query =
+    'UPDATE categories SET name = COALESCE($1, name) WHERE id = $2 RETURNING id, name, created_at;';
+  const { rows } = await pool.query<CategoryRow>(query, [updates.name, id]);
   const row = rows[0];
 
   if (!row) {
@@ -61,9 +60,22 @@ export const updateCategoryRepository = async (
   };
 };
 
+const isForeignKeyViolation = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === '23503';
+
 export const deleteCategoryRepository = async (id: number): Promise<void> => {
   const query = 'DELETE FROM categories WHERE id = $1';
-  const result = await pool.query(query, [id]);
+  let result;
+
+  try {
+    result = await pool.query(query, [id]);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error('Category has linked products.', { cause: error });
+    }
+
+    throw error;
+  }
 
   if (!result.rowCount) {
     throw new Error('Category not found.');

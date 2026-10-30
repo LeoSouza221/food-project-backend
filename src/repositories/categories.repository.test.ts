@@ -98,34 +98,32 @@ describe('getCategoryByIdRepository', () => {
 });
 
 describe('updateCategoryRepository', () => {
+  const updateQuery =
+    'UPDATE categories SET name = COALESCE($1, name) WHERE id = $2 RETURNING id, name, created_at;';
+
   it('should update a category successfully', async () => {
-    const updatedData = { name: 'Bebidas' };
     const created_at = new Date().toISOString();
+    mockQuery.mockImplementationOnce(async () => ({
+      rows: [{ id: 1, name: 'Bebidas', created_at }],
+    }));
 
-    mockQuery
-      .mockImplementationOnce(async () => ({ rows: [{ id: 1, name: 'Lanches', created_at }] }))
-      .mockImplementationOnce(async () => ({
-        rows: [{ id: 1, name: updatedData.name, created_at }],
-      }));
+    const updatedCategory = await updateCategoryRepository(1, { name: 'Bebidas' });
 
-    const updatedCategory = await updateCategoryRepository(1, updatedData);
-
-    expect(updatedCategory).toMatchObject(updatedData);
-    expect(updatedCategory.id).toBe(1);
-    expect(pool.query).toHaveBeenLastCalledWith(
-      'UPDATE categories SET name = $1 WHERE id = $2 RETURNING id, name, created_at;',
-      [updatedData.name, 1],
-    );
+    expect(updatedCategory).toEqual({ id: 1, name: 'Bebidas' });
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(pool.query).toHaveBeenCalledWith(updateQuery, ['Bebidas', 1]);
   });
 
-  it('should fall back to the existing name when no name is provided', async () => {
+  it('should keep the existing name when no name is provided', async () => {
+    const created_at = new Date().toISOString();
+    mockQuery.mockImplementationOnce(async () => ({
+      rows: [{ id: 1, name: 'Lanches', created_at }],
+    }));
+
     const updatedCategory = await updateCategoryRepository(1, {});
 
-    expect(updatedCategory).toMatchObject({ id: 1, name: 'Lanches' });
-    expect(pool.query).toHaveBeenLastCalledWith(
-      'UPDATE categories SET name = $1 WHERE id = $2 RETURNING id, name, created_at;',
-      ['Lanches', 1],
-    );
+    expect(updatedCategory).toEqual({ id: 1, name: 'Lanches' });
+    expect(pool.query).toHaveBeenCalledWith(updateQuery, [undefined, 1]);
   });
 
   it('should throw an error for a non-existent category ID', async () => {
@@ -133,18 +131,6 @@ describe('updateCategoryRepository', () => {
     await expect(updateCategoryRepository(99, { name: 'Bebidas' })).rejects.toThrow(
       'Category not found.',
     );
-  });
-
-  it('should throw an error when the category is missing from the update result', async () => {
-    const created_at = new Date().toISOString();
-    mockQuery
-      .mockImplementationOnce(async () => ({ rows: [{ id: 1, name: 'Lanches', created_at }] }))
-      .mockImplementationOnce(async () => emptyResult);
-
-    await expect(updateCategoryRepository(1, { name: 'Bebidas' })).rejects.toThrow(
-      'Category not found.',
-    );
-    expect(pool.query).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -159,5 +145,25 @@ describe('deleteCategoryRepository', () => {
   it('should throw an error for a non-existent category ID', async () => {
     mockQuery.mockImplementationOnce(async () => ({ rows: [], rowCount: 0 }));
     await expect(deleteCategoryRepository(99)).rejects.toThrow('Category not found.');
+  });
+
+  it('should throw a linked products error on foreign key violation', async () => {
+    const fkError = Object.assign(new Error('fk'), { code: '23503' });
+    mockQuery.mockImplementationOnce(async () => {
+      throw fkError;
+    });
+
+    await expect(deleteCategoryRepository(1)).rejects.toMatchObject({
+      message: 'Category has linked products.',
+      cause: fkError,
+    });
+  });
+
+  it('should rethrow unexpected database errors', async () => {
+    mockQuery.mockImplementationOnce(async () => {
+      throw new Error('Database unavailable');
+    });
+
+    await expect(deleteCategoryRepository(1)).rejects.toThrow('Database unavailable');
   });
 });

@@ -311,6 +311,18 @@ describe('deleteCategoryController', () => {
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Category not found' }));
   });
 
+  it('returns 409 when the category has linked products', async () => {
+    vi.mocked(categoryService.deleteCategory).mockRejectedValue(
+      new Error('Category has linked products.'),
+    );
+    const { res } = createResponse();
+
+    await deleteCategoryController(res, '1');
+
+    expect(res.writeHead).toHaveBeenCalledWith(409, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Category has linked products' }));
+  });
+
   it('returns 500 for unexpected service errors', async () => {
     vi.mocked(categoryService.deleteCategory).mockRejectedValue(new Error('Database unavailable'));
     const { res } = createResponse();

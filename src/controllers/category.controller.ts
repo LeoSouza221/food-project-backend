@@ -124,6 +124,10 @@ export const deleteCategoryController = async (res: ServerResponse, categoryId: 
       return sendJson(res, 404, { error: 'Category not found' });
     }
 
+    if (error instanceof Error && error.message === 'Category has linked products.') {
+      return sendJson(res, 409, { error: 'Category has linked products' });
+    }
+
     return sendJson(res, 500, { error: 'Internal Server Error' });
   }
 };
