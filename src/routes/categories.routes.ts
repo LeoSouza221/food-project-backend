@@ -6,12 +6,12 @@ import {
   listCategoriesController,
   updateCategoryController,
 } from '../controllers/category.controller.js';
+import { sendJson } from '../http/json.js';
 
 export const categoriesRoutes = (req: IncomingMessage, res: ServerResponse, segments: string[]) => {
   if (req.method === 'POST') {
     if (segments.length !== 1) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Bad Request' }));
+      return sendJson(res, 400, { error: 'Bad Request' });
     }
 
     return createCategoryController(req, res);
@@ -26,14 +26,12 @@ export const categoriesRoutes = (req: IncomingMessage, res: ServerResponse, segm
       return getCategoryByIdController(res, segments[1]);
     }
 
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ error: 'Bad Request' }));
+    return sendJson(res, 400, { error: 'Bad Request' });
   }
 
   if (req.method === 'PATCH' || req.method === 'DELETE') {
     if (segments.length !== 2 || !segments[1]) {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Bad Request' }));
+      return sendJson(res, 400, { error: 'Bad Request' });
     }
 
     if (req.method === 'PATCH') {
@@ -43,10 +41,12 @@ export const categoriesRoutes = (req: IncomingMessage, res: ServerResponse, segm
     return deleteCategoryController(res, segments[1]);
   }
 
-  res.writeHead(405, {
-    'Content-Type': 'application/json',
-    Allow: 'GET, POST, PATCH, DELETE',
-  });
-
-  return res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+  return sendJson(
+    res,
+    405,
+    { error: 'Method Not Allowed' },
+    {
+      Allow: 'GET, POST, PATCH, DELETE',
+    },
+  );
 };

@@ -283,7 +283,7 @@ describe('updateProductController', () => {
     const req = new EventEmitter() as IncomingMessage;
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
 
-    await updateProductController(req, res, productId);
+    updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
@@ -309,7 +309,7 @@ describe('updateProductController', () => {
     const req = new EventEmitter() as IncomingMessage;
     const updatedData = { price: 15.0 };
 
-    await updateProductController(req, res, productId);
+    updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
@@ -333,7 +333,7 @@ describe('updateProductController', () => {
     const req = new EventEmitter() as IncomingMessage;
     const id = '';
 
-    await updateProductController(req, res, id);
+    updateProductController(req, res, id);
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product ID is required' }));
@@ -362,7 +362,7 @@ describe('updateProductController', () => {
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
-    await updateProductController(req, res, id);
+    updateProductController(req, res, id);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
@@ -382,7 +382,7 @@ describe('updateProductController', () => {
 
     vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Invalid product update data'));
 
-    await updateProductController(req, res, productId);
+    updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
@@ -404,7 +404,7 @@ describe('updateProductController', () => {
 
     vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Invalid product update data'));
 
-    await updateProductController(req, res, productId);
+    updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
@@ -424,7 +424,7 @@ describe('updateProductController', () => {
     const updatedData = { name: 'Hambúrguer', price: 10.0, category: -1 };
     const req = new EventEmitter() as IncomingMessage;
     vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Invalid product update data'));
-    await updateProductController(req, res, productId);
+    updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
     req.emit('end');
@@ -462,7 +462,7 @@ describe('updateProductController', () => {
     } as unknown as ServerResponse;
     const req = new EventEmitter() as IncomingMessage;
 
-    await updateProductController(req, res, productId);
+    updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from('{ price: }'));
     req.emit('end');
