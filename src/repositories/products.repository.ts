@@ -1,6 +1,9 @@
 import type { CreateProductInput, Product, ProductRow } from '../types/product.js';
 import { pool } from '../database/pool.js';
 
+const isForeignKeyViolation = (error: unknown): boolean =>
+  typeof error === 'object' && error !== null && 'code' in error && error.code === '23503';
+
 export const clearProducts = async (): Promise<void> => {
   await pool.query('DELETE FROM products');
 };
@@ -12,7 +15,16 @@ export const saveProductRepository = async (product: CreateProductInput): Promis
     RETURNING id, name, price, category_id, created_at;
   `;
   const values = [product.name, product.price, product.category];
-  const { rows } = await pool.query<ProductRow>(query, values);
+  let rows: ProductRow[];
+  try {
+    ({ rows } = await pool.query<ProductRow>(query, values));
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error('Category not found.', { cause: error });
+    }
+
+    throw error;
+  }
   const createdProduct = rows[0];
 
   if (!createdProduct) {
@@ -69,7 +81,16 @@ export const updateProductRepository = async (
     RETURNING id, name, price, category_id, created_at;
   `;
   const values = [updates.name, updates.price, updates.category, id];
-  const { rows } = await pool.query<ProductRow>(query, values);
+  let rows: ProductRow[];
+  try {
+    ({ rows } = await pool.query<ProductRow>(query, values));
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      throw new Error('Category not found.', { cause: error });
+    }
+
+    throw error;
+  }
   const updatedProduct = rows[0];
 
   if (!updatedProduct) {

@@ -6,29 +6,38 @@ import {
 } from '../repositories/products.repository.js';
 import type { CreateProductInput, Product } from '../types/product.js';
 
+const isValidProductName = (name: unknown): name is string =>
+  typeof name === 'string' && name.trim() !== '' && Array.from(name).length <= 100;
+
+const hasAtMostTwoDecimalPlaces = (price: number): boolean => {
+  const [significand = '', exponent = '0'] = price.toString().toLowerCase().split('e');
+  const decimalPlaces = (significand.split('.')[1]?.length ?? 0) - Number(exponent);
+  return decimalPlaces <= 2;
+};
+
+const isValidProductPrice = (price: unknown): price is number =>
+  typeof price === 'number' &&
+  Number.isFinite(price) &&
+  price > 0 &&
+  price <= 99_999_999.99 &&
+  hasAtMostTwoDecimalPlaces(price);
+
+const isValidCategoryId = (category: unknown): category is number =>
+  typeof category === 'number' &&
+  Number.isInteger(category) &&
+  category > 0 &&
+  category <= 2_147_483_647;
+
 export const validateProduct = (product: unknown): product is CreateProductInput => {
-  if (typeof product !== 'object' || product === null) return false;
+  if (typeof product !== 'object' || product === null || Array.isArray(product)) return false;
 
   if (
     !('name' in product) ||
-    typeof product.name !== 'string' ||
     !('price' in product) ||
-    typeof product.price !== 'number' ||
     !('category' in product) ||
-    typeof product.category !== 'number'
-  )
-    return false;
-
-  const { name, price, category } = product;
-  const nameTrimmed = name.trim();
-
-  if (
-    !nameTrimmed ||
-    !Number.isFinite(price) ||
-    price <= 0 ||
-    !Number.isFinite(category) ||
-    category <= 0 ||
-    !Number.isInteger(category)
+    !isValidProductName(product.name) ||
+    !isValidProductPrice(product.price) ||
+    !isValidCategoryId(product.category)
   )
     return false;
 
@@ -72,17 +81,9 @@ const validateProductUpdate = (updates: unknown): updates is Partial<CreateProdu
 
   const { name, price, category } = updates;
 
-  if (name !== undefined && (typeof name !== 'string' || !name.trim())) return false;
-  if (price !== undefined && (typeof price !== 'number' || !Number.isFinite(price) || price <= 0))
-    return false;
-  if (
-    category !== undefined &&
-    (typeof category !== 'number' ||
-      !Number.isFinite(category) ||
-      category <= 0 ||
-      !Number.isInteger(category))
-  )
-    return false;
+  if (name !== undefined && !isValidProductName(name)) return false;
+  if (price !== undefined && !isValidProductPrice(price)) return false;
+  if (category !== undefined && !isValidCategoryId(category)) return false;
 
   return true;
 };

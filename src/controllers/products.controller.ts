@@ -7,13 +7,16 @@ import {
   updateProduct,
 } from '../services/product.service.js';
 
+const isValidProductId = (id: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
 export const listProductsController = async (res: ServerResponse) => {
   try {
     const products: Product[] = await getProducts();
 
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ products }));
-  } catch (error) {
+  } catch {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Internal Server Error' }));
   }
@@ -23,6 +26,11 @@ export const listProductByIdController = async (res: ServerResponse, productId: 
   if (!productId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Product ID is required' }));
+  }
+
+  if (!isValidProductId(productId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Invalid product ID' }));
   }
 
   try {
@@ -59,9 +67,17 @@ export const createProductController = async (req: IncomingMessage, res: ServerR
       const product = await createProduct(parsedBody);
       res.writeHead(201, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ message: 'Product created', product }));
-    } catch {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Invalid product data' }));
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        ['Invalid product data', 'Category not found.'].includes(error.message)
+      ) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid product data' }));
+      }
+
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Internal Server Error' }));
     }
   });
 };
@@ -74,6 +90,11 @@ export const updateProductController = (
   if (!productId) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Product ID is required' }));
+  }
+
+  if (!isValidProductId(productId)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Invalid product ID' }));
   }
 
   let body = '';
@@ -100,8 +121,16 @@ export const updateProductController = (
         return res.end(JSON.stringify({ error: 'Product not found' }));
       }
 
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ error: 'Invalid product data or update failed' }));
+      if (
+        error instanceof Error &&
+        ['Category not found.', 'Invalid product update data'].includes(error.message)
+      ) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: 'Invalid product data or update failed' }));
+      }
+
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: 'Internal Server Error' }));
     }
   });
 };

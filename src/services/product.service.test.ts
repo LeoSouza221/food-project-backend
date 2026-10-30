@@ -57,6 +57,7 @@ afterEach(() => {
 describe('validateProduct', () => {
   it.each([
     [{ name: 'Hambúrguer', price: 25.9, category: 1 }, true],
+    [{ name: 'Hambúrguer', price: 99_999_999.99, category: 2_147_483_647 }, true],
     [{ name: '', price: 25.9, category: 1 }, false],
     [{ name: '         ', price: 25.9, category: 1 }, false],
     [{ name: 'Hambúrguer', price: 25.9, category: null }, false],
@@ -66,6 +67,12 @@ describe('validateProduct', () => {
     [{ name: 'Hambúrguer', price: 25.9, category: 0 }, false],
     [{ name: 'Hambúrguer', price: 25.9, category: 0.1 }, false],
     [{ name: 'Hambúrguer', price: 25.9, category: 'string' }, false],
+    [{ name: 'a'.repeat(101), price: 25.9, category: 1 }, false],
+    [{ name: 'Hambúrguer', price: 100_000_000, category: 1 }, false],
+    [{ name: 'Hambúrguer', price: 25.999, category: 1 }, false],
+    [{ name: 'Hambúrguer', price: Infinity, category: 1 }, false],
+    [{ name: 'Hambúrguer', price: 25.9, category: 2_147_483_648 }, false],
+    [[{ name: 'Hambúrguer', price: 25.9, category: 1 }], false],
   ])('should validate product %#', (product, expected) => {
     expect(validateProduct(product)).toBe(expected);
   });
@@ -155,6 +162,12 @@ describe('updateProduct', () => {
     [{ price: '25.9' }],
     [{ category: NaN }],
     [{ name: '         ' }],
+    [{ name: 'a'.repeat(101) }],
+    [{ price: 100_000_000 }],
+    [{ price: 25.999 }],
+    [{ price: Infinity }],
+    [{ category: 2_147_483_648 }],
+    [[{ price: 12.5 }]],
   ])('should throw an error when the updated data is invalid', (updatedData) => {
     expect(() => updateProduct('1', updatedData)).toThrow('Invalid product update data');
   });

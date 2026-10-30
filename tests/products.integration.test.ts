@@ -1,16 +1,7 @@
-import { createApp } from './app.js';
+import { createApp } from '../src/app.js';
 import { beforeAll, beforeEach, afterAll, expect, it, describe } from 'vitest';
-import { clearProducts } from './repositories/products.repository.js';
-import { pool } from './database/pool.js';
-
-const createTestCategory = async () => {
-  await pool.query(
-    `INSERT INTO categories (name)
-     VALUES ($1)
-     ON CONFLICT DO NOTHING`,
-    ['Categoria de teste'],
-  );
-};
+import { clearProducts } from '../src/repositories/products.repository.js';
+import { pool } from '../src/database/pool.js';
 
 beforeEach(async () => {
   await clearProducts();
@@ -29,7 +20,11 @@ beforeAll(async () => {
     ['Categoria de teste'],
   );
 
-  categoryId = result.rows[0].id;
+  const category = result.rows[0];
+  if (!category) {
+    throw new Error('Could not create the product test category.');
+  }
+  categoryId = category.id;
 
   await new Promise<void>((resolve) => {
     app.listen(0, resolve);
@@ -43,22 +38,25 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve, reject) => {
-    app.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
+  try {
+    await clearProducts();
+    await pool.query('DELETE FROM categories WHERE id = $1', [categoryId]);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      app.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
 
-      resolve();
+        resolve();
+      });
     });
-  });
+  }
 });
 
-describe('App', () => {
+describe('Products API integration', () => {
   it('should fetch /health', async () => {
-    const result = await pool.query('SELECT current_database()');
-    console.log(result.rows[0].current_database);
     const response = await fetch(`http://localhost:${port}/health`);
 
     expect(response.ok).toBe(true);
@@ -95,7 +93,7 @@ describe('App', () => {
     const product = {
       name: '',
       price: 10,
-      category: 1,
+      category: categoryId,
     };
     const response = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
@@ -112,8 +110,34 @@ describe('App', () => {
     });
   });
 
+  it('should reject a product with a missing category', async () => {
+    const response = await fetch(`http://localhost:${port}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Orphan product', price: 10, category: 2_147_483_647 }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid product data' });
+  });
+
+  it.each([
+    [{ name: 'a'.repeat(101), price: 10, category: categoryId }],
+    [{ name: 'Valid name', price: 100_000_000, category: categoryId }],
+    [{ name: 'Valid name', price: 10.001, category: categoryId }],
+  ])('should reject product values outside database limits', async (product) => {
+    const response = await fetch(`http://localhost:${port}/products`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(product),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid product data' });
+  });
+
   it('should fetch a product by id', async () => {
-    const product = { name: 'Test Product', price: 10, category: 1 };
+    const product = { name: 'Test Product', price: 10, category: categoryId };
     const createResponse = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
       headers: {
@@ -149,19 +173,19 @@ describe('App', () => {
     });
   });
 
-  it('should fail to fetch a product with invalid uuid', async () => {
+  it('should reject a malformed product UUID', async () => {
     const response = await fetch(`http://localhost:${port}/products/invalid-id`);
 
-    expect(response.status).toBe(500);
+    expect(response.status).toBe(400);
 
     const data = await response.json();
     expect(data).toEqual({
-      error: 'Internal Server Error',
+      error: 'Invalid product ID',
     });
   });
 
   it('should update a product by id', async () => {
-    const product = { name: 'Test Product', price: 10, category: 1 };
+    const product = { name: 'Test Product', price: 10, category: categoryId };
     const createResponse = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
       headers: {
@@ -200,7 +224,7 @@ describe('App', () => {
       product: {
         name: 'Updated Product',
         price: 10,
-        category: 1,
+        category: categoryId,
         id: productId,
       },
     });
@@ -225,8 +249,19 @@ describe('App', () => {
     });
   });
 
+  it('should reject a malformed product UUID when updating', async () => {
+    const response = await fetch(`http://localhost:${port}/products/not-a-uuid`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Updated Product' }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: 'Invalid product ID' });
+  });
+
   it('should fail to update a product with invalid data', async () => {
-    const product = { name: 'Test Product', price: 10, category: 1 };
+    const product = { name: 'Test Product', price: 10, category: categoryId };
     const createResponse = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
       headers: {
@@ -275,7 +310,7 @@ describe('App', () => {
   });
 
   it('should return a list of products', async () => {
-    const product = { name: 'Test Product', price: 10, category: 1 };
+    const product = { name: 'Test Product', price: 10, category: categoryId };
     const createResponse = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
       headers: {
@@ -285,7 +320,7 @@ describe('App', () => {
     });
     expect(createResponse.status).toBe(201);
 
-    const anotherProduct = { name: 'Another Test Product', price: 20, category: 1 };
+    const anotherProduct = { name: 'Another Test Product', price: 20, category: categoryId };
     const anotherCreateResponse = await fetch(`http://localhost:${port}/products`, {
       method: 'POST',
       headers: {
@@ -302,8 +337,8 @@ describe('App', () => {
     expect(data.products.length).toBeGreaterThanOrEqual(2);
     expect(data.products).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: 'Test Product', price: 10, category: 1 }),
-        expect.objectContaining({ name: 'Another Test Product', price: 20, category: 1 }),
+        expect.objectContaining({ name: 'Test Product', price: 10, category: categoryId }),
+        expect.objectContaining({ name: 'Another Test Product', price: 20, category: categoryId }),
       ]),
     );
   });

@@ -56,6 +56,16 @@ describe('saveProduct', () => {
       'It was not possible to save the product.',
     );
   });
+
+  it('should report a missing category when the foreign key constraint fails', async () => {
+    mockQuery.mockRejectedValueOnce(
+      Object.assign(new Error('Foreign key violation'), { code: '23503' }),
+    );
+
+    await expect(
+      saveProductRepository({ name: 'Hambúrguer', price: 25.9, category: 999 }),
+    ).rejects.toThrow('Category not found.');
+  });
 });
 
 describe('getProductsRepository', () => {
@@ -180,5 +190,15 @@ describe('updateProductRepository', () => {
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
     mockQuery.mockImplementationOnce(async () => ({ rows: [] }));
     await expect(updateProductRepository(id, updatedData)).rejects.toThrow('Product not found.');
+  });
+
+  it('should report a missing category when an update violates the foreign key', async () => {
+    mockQuery.mockRejectedValueOnce(
+      Object.assign(new Error('Foreign key violation'), { code: '23503' }),
+    );
+
+    await expect(updateProductRepository('1', { category: 999 })).rejects.toThrow(
+      'Category not found.',
+    );
   });
 });

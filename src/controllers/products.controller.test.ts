@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import {
+  createProductController,
   listProductByIdController,
   listProductsController,
   updateProductController,
@@ -9,23 +10,41 @@ import {
 import { createProduct, updateProduct } from '../services/product.service.js';
 import * as productService from '../services/product.service.js';
 
+const productId = '00000000-0000-4000-8000-000000000001';
+
 vi.mock('../services/product.service.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../services/product.service.js')>();
   return {
     ...actual,
-    getProducts: vi
-      .fn()
-      .mockResolvedValue([{ name: 'Hambúrguer', price: 25.9, category: 1, id: '1' }]),
+    createProduct: vi.fn().mockResolvedValue({
+      name: 'Hambúrguer',
+      price: 25.9,
+      category: 1,
+      id: '00000000-0000-4000-8000-000000000001',
+    }),
+    getProducts: vi.fn().mockResolvedValue([
+      {
+        name: 'Hambúrguer',
+        price: 25.9,
+        category: 1,
+        id: '00000000-0000-4000-8000-000000000001',
+      },
+    ]),
     getProductById: vi.fn().mockImplementation(async (id) => {
-      if (id === '1') {
-        return { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
+      if (id === '00000000-0000-4000-8000-000000000001') {
+        return {
+          name: 'Hambúrguer',
+          price: 25.9,
+          category: 1,
+          id: '00000000-0000-4000-8000-000000000001',
+        };
       }
       throw new Error('Product not found');
     }),
     updateProduct: vi.fn().mockImplementation(async (id, updates) => {
-      if (id === '1') {
+      if (id === '00000000-0000-4000-8000-000000000001') {
         return {
-          id: '1',
+          id: '00000000-0000-4000-8000-000000000001',
           name: updates.name ?? 'Hambúrguer',
           price: updates.price ?? 25.9,
           category: updates.category ?? 1,
@@ -49,13 +68,106 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+describe('createProductController', () => {
+  it('creates a product', async () => {
+    const req = new EventEmitter() as IncomingMessage;
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+    const productData = { name: 'Hambúrguer', price: 25.9, category: 1 };
+
+    createProductController(req, res);
+    req.emit('data', Buffer.from(JSON.stringify(productData)));
+    req.emit('end');
+    await responseEnded;
+
+    expect(createProduct).toHaveBeenCalledWith(productData);
+    expect(res.writeHead).toHaveBeenCalledWith(201, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(
+      JSON.stringify({
+        message: 'Product created',
+        product: { ...productData, id: productId },
+      }),
+    );
+  });
+
+  it('returns 400 for malformed JSON', async () => {
+    const req = new EventEmitter() as IncomingMessage;
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+
+    createProductController(req, res);
+    req.emit('data', Buffer.from('{ name: }'));
+    req.emit('end');
+    await responseEnded;
+
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid JSON' }));
+    expect(createProduct).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for invalid product data', async () => {
+    vi.mocked(createProduct).mockRejectedValueOnce(new Error('Invalid product data'));
+    const req = new EventEmitter() as IncomingMessage;
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+
+    createProductController(req, res);
+    req.emit('data', Buffer.from(JSON.stringify({ name: '', price: 25, category: 1 })));
+    req.emit('end');
+    await responseEnded;
+
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid product data' }));
+  });
+
+  it('returns 400 when the category does not exist', async () => {
+    vi.mocked(createProduct).mockRejectedValueOnce(new Error('Category not found.'));
+    const req = new EventEmitter() as IncomingMessage;
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+
+    createProductController(req, res);
+    req.emit('data', Buffer.from(JSON.stringify({ name: 'Hambúrguer', price: 25, category: 999 })));
+    req.emit('end');
+    await responseEnded;
+
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid product data' }));
+  });
+
+  it('returns 500 when persistence fails', async () => {
+    vi.mocked(createProduct).mockRejectedValueOnce(new Error('Database unavailable'));
+    const req = new EventEmitter() as IncomingMessage;
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+
+    createProductController(req, res);
+    req.emit('data', Buffer.from(JSON.stringify({ name: 'Hambúrguer', price: 25, category: 1 })));
+    req.emit('end');
+    await responseEnded;
+
+    expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
+  });
+});
+
 describe('listProductByIdController', () => {
   it('should return the product when it exists', async () => {
     const res = {
       writeHead: vi.fn(),
       end: vi.fn(),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: productId };
 
     await listProductByIdController(res, product.id);
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
@@ -85,7 +197,7 @@ describe('listProductByIdController', () => {
     vi.mocked(productService.getProductById).mockRejectedValueOnce(
       new Error('Internal Server Error'),
     );
-    await listProductByIdController(res, 'non-existing-id');
+    await listProductByIdController(res, '00000000-0000-4000-8000-000000000002');
 
     expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
@@ -103,19 +215,17 @@ describe('listProductByIdController', () => {
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product ID is required' }));
   });
 
-  it('should return 500 when there is an internal server error', async () => {
+  it('should return 400 when the product ID is malformed', async () => {
     const res = {
       writeHead: vi.fn(),
       end: vi.fn(),
     } as unknown as ServerResponse;
 
-    vi.mocked(productService.getProductById).mockRejectedValueOnce(
-      new Error('Internal Server Error'),
-    );
-    await listProductByIdController(res, '1');
+    await listProductByIdController(res, 'not-a-uuid');
 
-    expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
-    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid product ID' }));
+    expect(productService.getProductById).not.toHaveBeenCalled();
   });
 });
 
@@ -125,10 +235,10 @@ describe('listProductsController', () => {
       writeHead: vi.fn(),
       end: vi.fn(),
     } as unknown as ServerResponse;
-    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: '1' };
+    const product = { name: 'Hambúrguer', price: 25.9, category: 1, id: productId };
 
     await listProductsController(res);
-    const responseBody = res.end.mock.calls[0][0];
+    const responseBody = vi.mocked(res.end).mock.calls[0]?.[0];
     const parsedResponse = JSON.parse(responseBody);
 
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
@@ -170,7 +280,6 @@ describe('updateProductController', () => {
       writeHead: vi.fn(),
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const productId = '1';
     const req = new EventEmitter() as IncomingMessage;
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
 
@@ -180,7 +289,7 @@ describe('updateProductController', () => {
     req.emit('end');
     await responseEnded;
 
-    const responseBody = res.end.mock.calls[0][0];
+    const responseBody = vi.mocked(res.end).mock.calls[0]?.[0];
     const parsedResponse = JSON.parse(responseBody);
 
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
@@ -197,7 +306,6 @@ describe('updateProductController', () => {
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
     const product = { name: 'Hambúrguer', price: 25.9, category: 1 };
-    const productId = '1';
     const req = new EventEmitter() as IncomingMessage;
     const updatedData = { price: 15.0 };
 
@@ -207,7 +315,7 @@ describe('updateProductController', () => {
     req.emit('end');
     await responseEnded;
 
-    const responseBody = res.end.mock.calls[0][0];
+    const responseBody = vi.mocked(res.end).mock.calls[0]?.[0];
     const parsedResponse = JSON.parse(responseBody);
 
     expect(res.writeHead).toHaveBeenCalledWith(200, { 'Content-Type': 'application/json' });
@@ -231,12 +339,26 @@ describe('updateProductController', () => {
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Product ID is required' }));
   });
 
+  it('should return 400 when the product ID is malformed', () => {
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(),
+    } as unknown as ServerResponse;
+    const req = new EventEmitter() as IncomingMessage;
+
+    updateProductController(req, res, 'not-a-uuid');
+
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid product ID' }));
+    expect(updateProduct).not.toHaveBeenCalled();
+  });
+
   it('should return 404 for a non-existent product ID', async () => {
     const res = {
       writeHead: vi.fn(),
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const id = 'non-existent-id';
+    const id = '00000000-0000-4000-8000-000000000002';
     const updatedData = { name: 'X-Salada', price: 10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
@@ -255,13 +377,10 @@ describe('updateProductController', () => {
       writeHead: vi.fn(),
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const productId = '1';
     const updatedData = { name: '', price: 10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
-    vi.mocked(updateProduct).mockRejectedValueOnce(
-      new Error('Invalid product data or update failed'),
-    );
+    vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Invalid product update data'));
 
     await updateProductController(req, res, productId);
 
@@ -280,13 +399,10 @@ describe('updateProductController', () => {
       writeHead: vi.fn(),
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const productId = '1';
     const updatedData = { name: 'Hambúrguer', price: -10.0, category: 1 };
     const req = new EventEmitter() as IncomingMessage;
 
-    vi.mocked(updateProduct).mockRejectedValueOnce(
-      new Error('Invalid product data or update failed'),
-    );
+    vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Invalid product update data'));
 
     await updateProductController(req, res, productId);
 
@@ -305,15 +421,31 @@ describe('updateProductController', () => {
       writeHead: vi.fn(),
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const productId = '1';
     const updatedData = { name: 'Hambúrguer', price: 10.0, category: -1 };
     const req = new EventEmitter() as IncomingMessage;
-    vi.mocked(updateProduct).mockRejectedValueOnce(
-      new Error('Invalid product data or update failed'),
-    );
+    vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Invalid product update data'));
     await updateProductController(req, res, productId);
 
     req.emit('data', Buffer.from(JSON.stringify(updatedData)));
+    req.emit('end');
+    await responseEnded;
+
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(
+      JSON.stringify({ error: 'Invalid product data or update failed' }),
+    );
+  });
+
+  it('should return 400 when the updated category does not exist', async () => {
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+    const req = new EventEmitter() as IncomingMessage;
+
+    vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Category not found.'));
+    updateProductController(req, res, productId);
+    req.emit('data', Buffer.from(JSON.stringify({ category: 999 })));
     req.emit('end');
     await responseEnded;
 
@@ -328,7 +460,6 @@ describe('updateProductController', () => {
       writeHead: vi.fn(),
       end: vi.fn(() => resolveResponse()),
     } as unknown as ServerResponse;
-    const productId = '1';
     const req = new EventEmitter() as IncomingMessage;
 
     await updateProductController(req, res, productId);
@@ -339,5 +470,22 @@ describe('updateProductController', () => {
 
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Invalid JSON' }));
+  });
+
+  it('should return 500 for unexpected update errors', async () => {
+    vi.mocked(updateProduct).mockRejectedValueOnce(new Error('Database unavailable'));
+    const res = {
+      writeHead: vi.fn(),
+      end: vi.fn(() => resolveResponse()),
+    } as unknown as ServerResponse;
+    const req = new EventEmitter() as IncomingMessage;
+
+    updateProductController(req, res, productId);
+    req.emit('data', Buffer.from(JSON.stringify({ name: 'Burguer' })));
+    req.emit('end');
+    await responseEnded;
+
+    expect(res.writeHead).toHaveBeenCalledWith(500, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Internal Server Error' }));
   });
 });

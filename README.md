@@ -90,9 +90,12 @@ src/
 ├── controllers/
 ├── services/
 └── repositories/
+tests/
+├── products.integration.test.ts
+└── categories.integration.test.ts
 ```
 
-The structure will expand as new responsibilities and features are implemented.
+Unit tests remain next to their source files; HTTP integration tests live in `tests/`.
 
 ## Status
 

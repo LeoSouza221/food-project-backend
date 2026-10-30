@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp } from './app.js';
-import { pool } from './database/pool.js';
+import { createApp } from '../src/app.js';
+import { pool } from '../src/database/pool.js';
 
 const app = createApp();
 const categoryIds: number[] = [];
