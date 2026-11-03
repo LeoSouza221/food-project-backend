@@ -56,9 +56,13 @@ export type NewUserRecord = Omit<CreateUserInput, 'password'> & {
   passwordHash: string;
 };
 
-export type User = Omit<CreateUserInput, 'password'> & {
+export type User = {
   id: string;
+  name: string;
+  email: string;
+  phone: string;
   role: UserRole;
+  address: Address;
 };
 
 export type UserRow = {
@@ -75,3 +79,6 @@ export type UserRow = {
   address_neighborhood: string;
   created_at: string;
 };
+
+// Colunas selecionadas nas consultas públicas, sem password_hash.
+export type UserPublicRow = Omit<UserRow, 'password_hash'>;

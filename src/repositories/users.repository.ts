@@ -1,4 +1,4 @@
-import type { NewUserRecord, UpdateUserInput, User, UserRow } from '../types/user.js';
+import type { NewUserRecord, UpdateUserInput, User, UserPublicRow } from '../types/user.js';
 import {
   EmailAlreadyInUseError,
   PhoneAlreadyInUseError,
@@ -9,7 +9,7 @@ import { pool } from '../database/pool.js';
 const columns =
   'id, name, email, phone, role, address_street, address_number, address_city, address_state, address_neighborhood, created_at';
 
-const toUser = (row: UserRow): User => ({
+const toUser = (row: UserPublicRow): User => ({
   id: row.id,
   name: row.name,
   email: row.email,
@@ -56,7 +56,7 @@ export const saveUserRepository = async (user: NewUserRecord): Promise<User> => 
     address.state,
     address.neighborhood,
   ];
-  const { rows } = await pool.query<UserRow>(query, values).catch((error: unknown) => {
+  const { rows } = await pool.query<UserPublicRow>(query, values).catch((error: unknown) => {
     throw translateUniqueViolation(error);
   });
   const createdUser = rows[0];
@@ -69,13 +69,15 @@ export const saveUserRepository = async (user: NewUserRecord): Promise<User> => 
 };
 
 export const getUsersRepository = async (): Promise<User[]> => {
-  const result = await pool.query<UserRow>(`SELECT ${columns} FROM users`);
+  const result = await pool.query<UserPublicRow>(`SELECT ${columns} FROM users`);
 
   return result.rows.map(toUser);
 };
 
 export const getUserByIdRepository = async (id: string): Promise<User> => {
-  const result = await pool.query<UserRow>(`SELECT ${columns} FROM users WHERE id = $1`, [id]);
+  const result = await pool.query<UserPublicRow>(`SELECT ${columns} FROM users WHERE id = $1`, [
+    id,
+  ]);
   const row = result.rows[0];
 
   if (!row) {
@@ -111,7 +113,7 @@ export const updateUserRepository = async (id: string, updates: UpdateUserInput)
     address?.neighborhood,
     id,
   ];
-  const { rows } = await pool.query<UserRow>(query, values).catch((error: unknown) => {
+  const { rows } = await pool.query<UserPublicRow>(query, values).catch((error: unknown) => {
     throw translateUniqueViolation(error);
   });
   const updatedUser = rows[0];

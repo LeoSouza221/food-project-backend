@@ -29,4 +29,3 @@ CREATE TABLE users (
     CONSTRAINT users_phone_key UNIQUE (phone)
 );
 
-CREATE INDEX users_role_idx ON users (role);

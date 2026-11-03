@@ -34,6 +34,16 @@ const isValidPassword = (password: unknown): password is string =>
   typeof password === 'string' && password.length >= 8 && password.length <= 72;
 
 const normalizeEmail = (email: string) => email.trim().toLowerCase();
+const normalizeText = (value: string): string => {
+  return value.trim().replace(/\s+/g, ' ');
+};
+const normalizeAddress = (address: Address): Address => ({
+  street: normalizeText(address.street),
+  number: normalizeText(address.number),
+  city: normalizeText(address.city),
+  state: address.state.trim().toUpperCase() as BrazilianState,
+  neighborhood: normalizeText(address.neighborhood),
+});
 
 // Apenas dígitos com DDD: 10 (fixo) ou 11 (celular) dígitos.
 const isValidPhone = (phone: unknown): phone is string =>
@@ -78,12 +88,20 @@ export const createUser = async (user: unknown): Promise<User> => {
     throw new InvalidUserDataError();
   }
 
-  const { password, email, ...rest } = user;
+  const { password, email, name, address, ...rest } = user;
 
-  return saveUserRepository({
+  const normalizedInput = {
     ...rest,
+    name: normalizeText(name),
     email: normalizeEmail(email),
     passwordHash: await hashPassword(password),
+    address: normalizeAddress(address),
+  };
+
+  validateUser(normalizedInput);
+
+  return saveUserRepository({
+    ...normalizedInput,
   });
 };
 
@@ -117,6 +135,8 @@ export const updateUser = (id: string, updates: unknown): Promise<User> => {
   return updateUserRepository(id, {
     ...updates,
     ...(typeof updates.email === 'string' && { email: normalizeEmail(updates.email) }),
+    ...(typeof updates.address === 'object' && { address: normalizeAddress(updates.address) }),
+    ...(typeof updates.name === 'string' && { name: normalizeText(updates.name) }),
   });
 };
 
