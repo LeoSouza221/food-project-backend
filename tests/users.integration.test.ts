@@ -110,6 +110,41 @@ describe('Users API integration', () => {
     expect(data.user.email).toBe(payload.email);
   });
 
+  it('normalizes extra spaces and lowercase state before saving', async () => {
+    const payload = buildPayload();
+    const response = await post({
+      ...payload,
+      name: '  Maria   da   Silva ',
+      email: `  ${payload.email.toUpperCase()}  `,
+      password,
+      address: {
+        street: '  Rua   das   Flores ',
+        number: ' 12   B ',
+        city: ' Foz   do  Iguaçu ',
+        state: 'pr',
+        neighborhood: '  Vila   Nova ',
+      },
+    });
+    const data = await response.json();
+    userIds.push(data.user.id);
+
+    expect(response.status).toBe(201);
+    expect(data.user).toEqual({
+      id: expect.any(String),
+      role: 'customer',
+      name: 'Maria da Silva',
+      email: payload.email,
+      phone: payload.phone,
+      address: {
+        street: 'Rua das Flores',
+        number: '12 B',
+        city: 'Foz do Iguaçu',
+        state: 'PR',
+        neighborhood: 'Vila Nova',
+      },
+    });
+  });
+
   it('rejects duplicate email and phone with 409', async () => {
     const { payload } = await createUser();
 

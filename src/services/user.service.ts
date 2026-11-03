@@ -62,7 +62,8 @@ const isValidAddress = (address: unknown): address is Address => {
     isNonEmptyText(address.street, 150) &&
     isNonEmptyText(address.number, 20) &&
     isNonEmptyText(address.city, 100) &&
-    isValidState(address.state) &&
+    typeof address.state === 'string' &&
+    isValidState(address.state.trim().toUpperCase()) &&
     isNonEmptyText(address.neighborhood, 100)
   );
 };
@@ -98,11 +99,7 @@ export const createUser = async (user: unknown): Promise<User> => {
     address: normalizeAddress(address),
   };
 
-  validateUser(normalizedInput);
-
-  return saveUserRepository({
-    ...normalizedInput,
-  });
+  return saveUserRepository(normalizedInput);
 };
 
 export const getUsers = (): Promise<User[]> => {

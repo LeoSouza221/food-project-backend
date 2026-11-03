@@ -111,6 +111,54 @@ describe('createUser', () => {
     expect(JSON.stringify(saved)).not.toContain(validUser.password);
   });
 
+  it('trims and collapses extra spaces in name and address', async () => {
+    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue(savedUser);
+    await createUser({
+      ...validUser,
+      name: '  Leonardo   de   Souza  ',
+      address: {
+        street: '  Rua   das    Flores ',
+        number: ' 12   B ',
+        city: ' São   Paulo ',
+        state: 'SP',
+        neighborhood: '  Vila   Nova   Conceição ',
+      },
+    });
+    const saved = vi.mocked(usersRepository.saveUserRepository).mock.calls[0]?.[0];
+    expect(saved?.name).toBe('Leonardo de Souza');
+    expect(saved?.address).toEqual({
+      street: 'Rua das Flores',
+      number: '12 B',
+      city: 'São Paulo',
+      state: 'SP',
+      neighborhood: 'Vila Nova Conceição',
+    });
+  });
+
+  it('trims extra spaces around the email', async () => {
+    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue(savedUser);
+    await createUser({ ...validUser, email: '   leonardo@example.com   ' });
+    expect(vi.mocked(usersRepository.saveUserRepository).mock.calls[0]?.[0].email).toBe(
+      'leonardo@example.com',
+    );
+  });
+
+  it.each(['pr', 'Pr', ' pr '])('normalizes the lowercase state %j to uppercase', async (state) => {
+    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue(savedUser);
+    await createUser({ ...validUser, address: { ...address, state } });
+    expect(vi.mocked(usersRepository.saveUserRepository).mock.calls[0]?.[0].address.state).toBe(
+      'PR',
+    );
+  });
+
+  it('rejects names and address fields made only of spaces', async () => {
+    await expect(createUser({ ...validUser, name: '     ' })).rejects.toThrow(InvalidUserDataError);
+    await expect(
+      createUser({ ...validUser, address: { ...address, street: '     ' } }),
+    ).rejects.toThrow(InvalidUserDataError);
+    expect(usersRepository.saveUserRepository).not.toHaveBeenCalled();
+  });
+
   it('throws on invalid data without hitting the repository', async () => {
     await expect(createUser({})).rejects.toThrow(InvalidUserDataError);
     expect(usersRepository.saveUserRepository).not.toHaveBeenCalled();
@@ -146,6 +194,20 @@ describe('updateUser', () => {
     await updateUser(id, { email: 'New@Example.com' });
     expect(usersRepository.updateUserRepository).toHaveBeenCalledWith(id, {
       email: 'new@example.com',
+    });
+  });
+
+  it('normalizes name, email and address on update', async () => {
+    vi.mocked(usersRepository.updateUserRepository).mockResolvedValue(savedUser);
+    await updateUser(id, {
+      name: '  Maria   Silva ',
+      email: '  Maria@Example.com ',
+      address: { ...address, street: '  Rua   B ', city: ' Foz   do  Iguaçu ', state: 'pr' },
+    });
+    expect(usersRepository.updateUserRepository).toHaveBeenCalledWith(id, {
+      name: 'Maria Silva',
+      email: 'maria@example.com',
+      address: { ...address, street: 'Rua B', city: 'Foz do Iguaçu', state: 'PR' },
     });
   });
 
