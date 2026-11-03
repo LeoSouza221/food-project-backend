@@ -18,3 +18,26 @@ export class InvalidUserUpdateError extends Error {
     this.name = 'InvalidUserUpdateError';
   }
 }
+
+export class UserAlreadyExistsError extends Error {
+  constructor() {
+    super('User already exists');
+    this.name = 'UserAlreadyExistsError';
+  }
+}
+
+export class EmailAlreadyInUseError extends UserAlreadyExistsError {
+  constructor() {
+    super();
+    this.message = 'Email already in use';
+    this.name = 'EmailAlreadyInUseError';
+  }
+}
+
+export class PhoneAlreadyInUseError extends UserAlreadyExistsError {
+  constructor() {
+    super();
+    this.message = 'Phone already in use';
+    this.name = 'PhoneAlreadyInUseError';
+  }
+}

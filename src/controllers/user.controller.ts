@@ -9,6 +9,7 @@ import {
 import {
   InvalidUserDataError,
   InvalidUserUpdateError,
+  UserAlreadyExistsError,
   UserNotFoundError,
 } from '../errors/user.errors.js';
 import { InvalidJsonBodyError, readJsonBody, sendJson } from '../http/json.js';
@@ -74,6 +75,10 @@ export const createUserController = async (req: IncomingMessage, res: ServerResp
       return sendJson(res, 400, { error: 'Invalid user data' });
     }
 
+    if (error instanceof UserAlreadyExistsError) {
+      return sendJson(res, 409, { error: error.message });
+    }
+
     return sendJson(res, 500, { error: 'Internal Server Error' });
   }
 };
@@ -106,6 +111,10 @@ export const updateUserController = async (
 
     if (error instanceof InvalidUserUpdateError) {
       return sendJson(res, 400, { error: 'Invalid user data or update failed' });
+    }
+
+    if (error instanceof UserAlreadyExistsError) {
+      return sendJson(res, 409, { error: error.message });
     }
 
     return sendJson(res, 500, { error: 'Internal Server Error' });

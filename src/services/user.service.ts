@@ -7,7 +7,14 @@ import {
 } from '../repositories/users.repository.js';
 import { InvalidUserDataError, InvalidUserUpdateError } from '../errors/user.errors.js';
 import { BRAZILIAN_STATES } from '../types/user.js';
-import type { Address, BrazilianState, CreateUserInput, User } from '../types/user.js';
+import { hashPassword } from './password.js';
+import type {
+  Address,
+  BrazilianState,
+  CreateUserInput,
+  UpdateUserInput,
+  User,
+} from '../types/user.js';
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -16,6 +23,17 @@ const isNonEmptyText = (value: unknown, maxLength: number): value is string =>
   typeof value === 'string' && value.trim() !== '' && Array.from(value).length <= maxLength;
 
 const isValidUserName = (name: unknown): name is string => isNonEmptyText(name, 100);
+
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+const isValidEmail = (email: unknown): email is string =>
+  typeof email === 'string' && email.length <= 254 && EMAIL_PATTERN.test(email.trim());
+
+// Entre 8 e 72 caracteres (limita o custo do hash).
+const isValidPassword = (password: unknown): password is string =>
+  typeof password === 'string' && password.length >= 8 && password.length <= 72;
+
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
 
 // Apenas dígitos com DDD: 10 (fixo) ou 11 (celular) dígitos.
 const isValidPhone = (phone: unknown): phone is string =>
@@ -39,19 +57,34 @@ const isValidAddress = (address: unknown): address is Address => {
   );
 };
 
+const CREATE_KEYS = ['name', 'email', 'phone', 'password', 'address'];
+const UPDATE_KEYS = ['name', 'email', 'phone', 'address'];
+
 export const validateUser = (user: unknown): user is CreateUserInput => {
   if (!isPlainObject(user)) return false;
-  if (Object.keys(user).some((key) => !['name', 'phone', 'address'].includes(key))) return false;
+  if (Object.keys(user).some((key) => !CREATE_KEYS.includes(key))) return false;
 
-  return isValidUserName(user.name) && isValidPhone(user.phone) && isValidAddress(user.address);
+  return (
+    isValidUserName(user.name) &&
+    isValidEmail(user.email) &&
+    isValidPhone(user.phone) &&
+    isValidPassword(user.password) &&
+    isValidAddress(user.address)
+  );
 };
 
-export const createUser = (user: unknown): Promise<User> => {
+export const createUser = async (user: unknown): Promise<User> => {
   if (!validateUser(user)) {
     throw new InvalidUserDataError();
   }
 
-  return saveUserRepository(user);
+  const { password, email, ...rest } = user;
+
+  return saveUserRepository({
+    ...rest,
+    email: normalizeEmail(email),
+    passwordHash: await hashPassword(password),
+  });
 };
 
 export const getUsers = (): Promise<User[]> => {
@@ -62,13 +95,14 @@ export const getUserById = (id: string): Promise<User> => {
   return getUserByIdRepository(id);
 };
 
-const validateUserUpdate = (updates: unknown): updates is Partial<CreateUserInput> => {
+const validateUserUpdate = (updates: unknown): updates is UpdateUserInput => {
   if (!isPlainObject(updates) || Object.keys(updates).length === 0) return false;
-  if (Object.keys(updates).some((key) => !['name', 'phone', 'address'].includes(key))) return false;
+  if (Object.keys(updates).some((key) => !UPDATE_KEYS.includes(key))) return false;
 
-  const { name, phone, address } = updates;
+  const { name, email, phone, address } = updates;
 
   if (name !== undefined && !isValidUserName(name)) return false;
+  if (email !== undefined && !isValidEmail(email)) return false;
   if (phone !== undefined && !isValidPhone(phone)) return false;
   if (address !== undefined && !isValidAddress(address)) return false;
 
@@ -80,7 +114,10 @@ export const updateUser = (id: string, updates: unknown): Promise<User> => {
     throw new InvalidUserUpdateError();
   }
 
-  return updateUserRepository(id, updates);
+  return updateUserRepository(id, {
+    ...updates,
+    ...(typeof updates.email === 'string' && { email: normalizeEmail(updates.email) }),
+  });
 };
 
 export const deleteUser = (id: string): Promise<void> => {

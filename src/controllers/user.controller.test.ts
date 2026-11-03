@@ -12,6 +12,8 @@ import * as userService from '../services/user.service.js';
 import {
   InvalidUserDataError,
   InvalidUserUpdateError,
+  EmailAlreadyInUseError,
+  PhoneAlreadyInUseError,
   UserNotFoundError,
 } from '../errors/user.errors.js';
 
@@ -27,7 +29,9 @@ const id = '123e4567-e89b-42d3-a456-426614174000';
 const user = {
   id,
   name: 'Leonardo',
+  email: 'leonardo@example.com',
   phone: '44999999999',
+  role: 'customer',
   address: { street: 'Rua A', number: '12B', city: 'Maringá', state: 'PR', neighborhood: 'Centro' },
 } as const;
 
@@ -131,8 +135,9 @@ describe('getUserByIdController', () => {
 
 describe('createUserController', () => {
   it('creates a user', async () => {
-    const res = await sendBody(createUserController, JSON.stringify(user));
-    expect(userService.createUser).toHaveBeenCalledWith(user);
+    const payload = { ...user, password: 'senha-segura-123' };
+    const res = await sendBody(createUserController, JSON.stringify(payload));
+    expect(userService.createUser).toHaveBeenCalledWith(payload);
     expectJson(res, 201, { message: 'User created', user });
   });
 
@@ -145,6 +150,15 @@ describe('createUserController', () => {
     vi.mocked(userService.createUser).mockRejectedValue(new InvalidUserDataError());
     const res = await sendBody(createUserController, '{}');
     expectJson(res, 400, { error: 'Invalid user data' });
+  });
+
+  it.each([
+    [new EmailAlreadyInUseError(), 'Email already in use'],
+    [new PhoneAlreadyInUseError(), 'Phone already in use'],
+  ])('returns 409 on duplicates (%s)', async (error, message) => {
+    vi.mocked(userService.createUser).mockRejectedValue(error);
+    const res = await sendBody(createUserController, '{}');
+    expectJson(res, 409, { error: message });
   });
 
   it('returns 500 on unexpected errors', async () => {
@@ -177,6 +191,11 @@ describe('updateUserController', () => {
   it('returns 400 on invalid update data', async () => {
     vi.mocked(userService.updateUser).mockRejectedValue(new InvalidUserUpdateError());
     expectJson(await update('{}'), 400, { error: 'Invalid user data or update failed' });
+  });
+
+  it('returns 409 on duplicate email', async () => {
+    vi.mocked(userService.updateUser).mockRejectedValue(new EmailAlreadyInUseError());
+    expectJson(await update('{"email":"a@a.com"}'), 409, { error: 'Email already in use' });
   });
 
   it('returns 404 when not found', async () => {

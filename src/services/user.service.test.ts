@@ -27,8 +27,16 @@ const address = {
   state: 'PR',
   neighborhood: 'Centro',
 };
-const validUser = { name: 'Leonardo', phone: '44999999999', address };
 const id = '123e4567-e89b-42d3-a456-426614174000';
+const validUser = {
+  name: 'Leonardo',
+  email: 'leonardo@example.com',
+  phone: '44999999999',
+  password: 'senha-segura-123',
+  address,
+};
+const { password: _password, ...publicUser } = validUser; // eslint-disable-line @typescript-eslint/no-unused-vars
+const savedUser = { id, ...publicUser, role: 'customer' } as never;
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -54,15 +62,23 @@ describe('validateUser', () => {
   it.each([
     ['null', null],
     ['array', []],
-    ['missing name', { phone: validUser.phone, address }],
+    ['missing name', { ...validUser, name: undefined }],
+    ['missing email', { ...validUser, email: undefined }],
+    ['email without @', { ...validUser, email: 'leonardo.example.com' }],
+    ['long email', { ...validUser, email: `${'a'.repeat(250)}@a.com` }],
+    ['missing password', { ...validUser, password: undefined }],
+    ['short password', { ...validUser, password: '1234567' }],
+    ['long password', { ...validUser, password: 'a'.repeat(73) }],
+    ['role in payload', { ...validUser, role: 'admin' }],
+    ['password_hash in payload', { ...validUser, passwordHash: 'x' }],
     ['blank name', { ...validUser, name: ' ' }],
     ['long name', { ...validUser, name: 'a'.repeat(101) }],
-    ['missing phone', { name: 'A', address }],
+    ['missing phone', { ...validUser, phone: undefined }],
     ['phone with symbols', { ...validUser, phone: '(44) 99999-9999' }],
     ['short phone', { ...validUser, phone: '449999999' }],
     ['long phone', { ...validUser, phone: '449999999999' }],
     ['numeric phone', { ...validUser, phone: 44999999999 }],
-    ['missing address', { name: 'A', phone: validUser.phone }],
+    ['missing address', { ...validUser, address: undefined }],
     ['address not object', { ...validUser, address: 'Rua A' }],
     ['invalid state', { ...validUser, address: { ...address, state: 'XX' } }],
     ['blank street', { ...validUser, address: { ...address, street: ' ' } }],
@@ -78,13 +94,25 @@ describe('validateUser', () => {
 
 describe('createUser', () => {
   it('saves a valid user', async () => {
-    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue({ id, ...validUser } as never);
-    await expect(createUser(validUser)).resolves.toEqual({ id, ...validUser });
-    expect(usersRepository.saveUserRepository).toHaveBeenCalledWith(validUser);
+    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue(savedUser);
+    await expect(createUser(validUser)).resolves.toEqual(savedUser);
+    expect(usersRepository.saveUserRepository).toHaveBeenCalledWith({
+      ...publicUser,
+      passwordHash: expect.stringMatching(/^scrypt\$[0-9a-f]+\$[0-9a-f]+$/),
+    });
   });
 
-  it('throws on invalid data without hitting the repository', () => {
-    expect(() => createUser({})).toThrow(InvalidUserDataError);
+  it('normalizes the email and never forwards the plain password', async () => {
+    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue(savedUser);
+    await createUser({ ...validUser, email: '  Leonardo@Example.COM ' });
+    const saved = vi.mocked(usersRepository.saveUserRepository).mock.calls[0]?.[0];
+    expect(saved?.email).toBe('leonardo@example.com');
+    expect(saved).not.toHaveProperty('password');
+    expect(JSON.stringify(saved)).not.toContain(validUser.password);
+  });
+
+  it('throws on invalid data without hitting the repository', async () => {
+    await expect(createUser({})).rejects.toThrow(InvalidUserDataError);
     expect(usersRepository.saveUserRepository).not.toHaveBeenCalled();
   });
 });
@@ -94,25 +122,30 @@ describe('getUsers / getUserById / deleteUser', () => {
     vi.mocked(usersRepository.getUsersRepository).mockResolvedValue([]);
     vi.mocked(usersRepository.getUserByIdRepository).mockResolvedValue({
       id,
-      ...validUser,
+      ...publicUser,
     } as never);
     vi.mocked(usersRepository.deleteUserRepository).mockResolvedValue();
 
     await expect(getUsers()).resolves.toEqual([]);
-    await expect(getUserById(id)).resolves.toEqual({ id, ...validUser });
+    await expect(getUserById(id)).resolves.toEqual({ id, ...publicUser });
     await expect(deleteUser(id)).resolves.toBeUndefined();
   });
 });
 
 describe('updateUser', () => {
   it('accepts partial updates', async () => {
-    vi.mocked(usersRepository.updateUserRepository).mockResolvedValue({
-      id,
-      ...validUser,
-    } as never);
+    vi.mocked(usersRepository.updateUserRepository).mockResolvedValue(savedUser);
     await updateUser(id, { phone: '44888888888' });
     expect(usersRepository.updateUserRepository).toHaveBeenCalledWith(id, {
       phone: '44888888888',
+    });
+  });
+
+  it('normalizes the email on update', async () => {
+    vi.mocked(usersRepository.updateUserRepository).mockResolvedValue(savedUser);
+    await updateUser(id, { email: 'New@Example.com' });
+    expect(usersRepository.updateUserRepository).toHaveBeenCalledWith(id, {
+      email: 'new@example.com',
     });
   });
 
@@ -120,7 +153,9 @@ describe('updateUser', () => {
     ['empty object', {}],
     ['array', []],
     ['id', { id }],
-    ['unknown field', { email: 'a@a.com' }],
+    ['password', { password: 'senha-segura-123' }],
+    ['role', { role: 'admin' }],
+    ['invalid email', { email: 'nope' }],
     ['invalid name', { name: '' }],
     ['invalid phone', { phone: 'abc' }],
     ['invalid state', { address: { ...address, state: 'XX' } }],

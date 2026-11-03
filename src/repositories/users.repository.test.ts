@@ -7,7 +7,11 @@ import {
   deleteUserRepository,
 } from './users.repository.js';
 import { pool } from '../database/pool.js';
-import { UserNotFoundError } from '../errors/user.errors.js';
+import {
+  EmailAlreadyInUseError,
+  PhoneAlreadyInUseError,
+  UserNotFoundError,
+} from '../errors/user.errors.js';
 
 vi.mock('../database/pool.js', () => ({
   pool: { query: vi.fn() },
@@ -18,7 +22,10 @@ const id = '123e4567-e89b-42d3-a456-426614174000';
 const row = {
   id,
   name: 'Leonardo',
+  email: 'leonardo@example.com',
   phone: '44999999999',
+  password_hash: 'scrypt$salt$hash',
+  role: 'customer',
   address_street: 'Rua A',
   address_number: '12B',
   address_city: 'Maringá',
@@ -29,7 +36,9 @@ const row = {
 const user = {
   id,
   name: 'Leonardo',
+  email: 'leonardo@example.com',
   phone: '44999999999',
+  role: 'customer',
   address: {
     street: 'Rua A',
     number: '12B',
@@ -38,7 +47,13 @@ const user = {
     neighborhood: 'Centro',
   },
 };
-const input = { name: user.name, phone: user.phone, address: user.address };
+const input = {
+  name: user.name,
+  email: user.email,
+  phone: user.phone,
+  passwordHash: 'scrypt$salt$hash',
+  address: { ...user.address, state: 'PR' as const },
+};
 
 beforeEach(() => {
   mockQuery.mockResolvedValue({ rows: [row], rowCount: 1 });
@@ -49,11 +64,17 @@ afterEach(() => {
 });
 
 describe('saveUserRepository', () => {
-  it('saves a user and maps the address', async () => {
-    await expect(saveUserRepository(input as never)).resolves.toEqual(user);
+  it('saves a user, maps the address and never returns the hash', async () => {
+    const saved = await saveUserRepository(input);
+    expect(saved).toEqual(user);
+    expect(saved).not.toHaveProperty('password_hash');
+    expect(saved).not.toHaveProperty('passwordHash');
+    expect(mockQuery.mock.calls[0]?.[0]).not.toMatch(/RETURNING[^;]*password_hash/);
     expect(mockQuery.mock.calls[0]?.[1]).toEqual([
       'Leonardo',
+      'leonardo@example.com',
       '44999999999',
+      'scrypt$salt$hash',
       'Rua A',
       '12B',
       'Maringá',
@@ -62,9 +83,23 @@ describe('saveUserRepository', () => {
     ]);
   });
 
+  it.each([
+    ['users_email_key', EmailAlreadyInUseError],
+    ['users_phone_key', PhoneAlreadyInUseError],
+  ])('translates a %s violation', async (constraint, ErrorClass) => {
+    mockQuery.mockRejectedValueOnce(Object.assign(new Error('dup'), { code: '23505', constraint }));
+    await expect(saveUserRepository(input)).rejects.toThrow(ErrorClass);
+  });
+
+  it('rethrows other database errors untouched', async () => {
+    const error = new Error('db');
+    mockQuery.mockRejectedValueOnce(error);
+    await expect(saveUserRepository(input)).rejects.toBe(error);
+  });
+
   it('throws when nothing is returned', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(saveUserRepository(input as never)).rejects.toThrow(
+    await expect(saveUserRepository(input)).rejects.toThrow(
       'It was not possible to save the user.',
     );
   });
@@ -104,8 +139,18 @@ describe('updateUserRepository', () => {
       undefined,
       undefined,
       undefined,
+      undefined,
       id,
     ]);
+  });
+
+  it('translates unique violations on update', async () => {
+    mockQuery.mockRejectedValueOnce(
+      Object.assign(new Error('dup'), { code: '23505', constraint: 'users_email_key' }),
+    );
+    await expect(updateUserRepository(id, { email: 'a@a.com' })).rejects.toThrow(
+      EmailAlreadyInUseError,
+    );
   });
 
   it('throws when the user does not exist', async () => {

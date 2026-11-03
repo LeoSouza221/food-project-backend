@@ -38,20 +38,36 @@ export type Address = {
   neighborhood: string;
 };
 
+export const USER_ROLES = ['customer', 'admin'] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
 export type CreateUserInput = {
   name: string;
+  email: string;
   phone: string;
+  password: string;
   address: Address;
 };
 
-export type User = CreateUserInput & {
+export type UpdateUserInput = Partial<Omit<CreateUserInput, 'password'>>;
+
+export type NewUserRecord = Omit<CreateUserInput, 'password'> & {
+  passwordHash: string;
+};
+
+export type User = Omit<CreateUserInput, 'password'> & {
   id: string;
+  role: UserRole;
 };
 
 export type UserRow = {
   id: string;
   name: string;
+  email: string;
   phone: string;
+  password_hash: string;
+  role: UserRole;
   address_street: string;
   address_number: string;
   address_city: string;

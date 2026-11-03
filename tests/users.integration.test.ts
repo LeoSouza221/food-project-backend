@@ -13,7 +13,21 @@ const address = {
   state: 'PR',
   neighborhood: 'Centro',
 };
-const payload = { name: 'Usuário integração', phone: '44999999999', address };
+const password = 'senha-segura-123';
+let sequence = 0;
+
+// Telefone e e-mail são únicos, então cada usuário criado recebe valores próprios.
+const buildPayload = () => {
+  sequence += 1;
+  const suffix = `${Date.now()}${sequence}`;
+
+  return {
+    name: 'Usuário integração',
+    email: `integration-${suffix}@example.com`,
+    phone: `449${suffix.slice(-8).padStart(8, '0')}`,
+    address,
+  };
+};
 
 const post = (body: unknown) =>
   fetch(`${baseUrl}/users`, {
@@ -23,11 +37,12 @@ const post = (body: unknown) =>
   });
 
 const createUser = async () => {
-  const response = await post(payload);
+  const payload = buildPayload();
+  const response = await post({ ...payload, password });
   expect(response.status).toBe(201);
   const data = await response.json();
   userIds.push(data.user.id);
-  return data.user as { id: string };
+  return { ...(data.user as { id: string }), payload };
 };
 
 beforeAll(async () => {
@@ -64,12 +79,60 @@ afterAll(async () => {
 
 describe('Users API integration', () => {
   it('creates a user with a nested address', async () => {
-    const user = await createUser();
+    const { payload, ...user } = await createUser();
 
-    expect(user).toEqual({ id: expect.any(String), ...payload });
+    expect(user).toEqual({ id: expect.any(String), role: 'customer', ...payload });
+    expect(user).not.toHaveProperty('password');
+    expect(user).not.toHaveProperty('password_hash');
+  });
+
+  it('stores the password only as a hash', async () => {
+    const created = await createUser();
+    const { rows } = await pool.query('SELECT password_hash FROM users WHERE id = $1', [
+      created.id,
+    ]);
+
+    expect(rows[0].password_hash).toMatch(/^scrypt\$/);
+    expect(rows[0].password_hash).not.toContain(password);
+  });
+
+  it('normalizes the email to lowercase', async () => {
+    const payload = buildPayload();
+    const response = await post({
+      ...payload,
+      email: payload.email.toUpperCase(),
+      password,
+    });
+    const data = await response.json();
+    userIds.push(data.user.id);
+
+    expect(response.status).toBe(201);
+    expect(data.user.email).toBe(payload.email);
+  });
+
+  it('rejects duplicate email and phone with 409', async () => {
+    const { payload } = await createUser();
+
+    const sameEmail = await post({ ...buildPayload(), email: payload.email, password });
+    expect(sameEmail.status).toBe(409);
+    expect(await sameEmail.json()).toEqual({ error: 'Email already in use' });
+
+    const samePhone = await post({ ...buildPayload(), phone: payload.phone, password });
+    expect(samePhone.status).toBe(409);
+    expect(await samePhone.json()).toEqual({ error: 'Phone already in use' });
+  });
+
+  it('rejects role, missing or weak password', async () => {
+    const base = { ...buildPayload(), password };
+
+    expect((await post({ ...base, role: 'admin' })).status).toBe(400);
+    expect((await post({ ...base, password: undefined })).status).toBe(400);
+    expect((await post({ ...base, password: '123' })).status).toBe(400);
+    expect((await post({ ...base, email: 'invalid' })).status).toBe(400);
   });
 
   it('rejects invalid data and malformed JSON', async () => {
+    const payload = { ...buildPayload(), password };
     const invalidState = await post({ ...payload, address: { ...address, state: 'XX' } });
     expect(invalidState.status).toBe(400);
     expect(await invalidState.json()).toEqual({ error: 'Invalid user data' });
@@ -87,7 +150,7 @@ describe('Users API integration', () => {
   });
 
   it('lists users and retrieves one by ID', async () => {
-    const created = await createUser();
+    const { payload, ...created } = await createUser();
 
     const listResponse = await fetch(`${baseUrl}/users`);
     expect(listResponse.status).toBe(200);
@@ -97,7 +160,9 @@ describe('Users API integration', () => {
 
     const getResponse = await fetch(`${baseUrl}/users/${created.id}`);
     expect(getResponse.status).toBe(200);
-    expect(await getResponse.json()).toEqual({ user: { id: created.id, ...payload } });
+    expect(await getResponse.json()).toEqual({
+      user: { id: created.id, role: 'customer', ...payload },
+    });
   });
 
   it('returns 400 for invalid IDs and 404 for unknown users', async () => {
@@ -110,7 +175,7 @@ describe('Users API integration', () => {
   });
 
   it('updates a user', async () => {
-    const created = await createUser();
+    const { payload, ...created } = await createUser();
     const newAddress = { ...address, city: 'Londrina', state: 'SP' };
 
     const response = await fetch(`${baseUrl}/users/${created.id}`, {
@@ -121,7 +186,13 @@ describe('Users API integration', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       message: 'User updated',
-      user: { id: created.id, ...payload, phone: '4433334444', address: newAddress },
+      user: {
+        id: created.id,
+        role: 'customer',
+        ...payload,
+        phone: '4433334444',
+        address: newAddress,
+      },
     });
 
     const invalid = await fetch(`${baseUrl}/users/${created.id}`, {

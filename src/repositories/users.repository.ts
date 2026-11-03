@@ -1,14 +1,20 @@
-import type { CreateUserInput, User, UserRow } from '../types/user.js';
-import { UserNotFoundError } from '../errors/user.errors.js';
+import type { NewUserRecord, UpdateUserInput, User, UserRow } from '../types/user.js';
+import {
+  EmailAlreadyInUseError,
+  PhoneAlreadyInUseError,
+  UserNotFoundError,
+} from '../errors/user.errors.js';
 import { pool } from '../database/pool.js';
 
 const columns =
-  'id, name, phone, address_street, address_number, address_city, address_state, address_neighborhood, created_at';
+  'id, name, email, phone, role, address_street, address_number, address_city, address_state, address_neighborhood, created_at';
 
 const toUser = (row: UserRow): User => ({
   id: row.id,
   name: row.name,
+  email: row.email,
   phone: row.phone,
+  role: row.role,
   address: {
     street: row.address_street,
     number: row.address_number,
@@ -18,27 +24,41 @@ const toUser = (row: UserRow): User => ({
   },
 });
 
+const translateUniqueViolation = (error: unknown): unknown => {
+  const { code, constraint } = (error ?? {}) as { code?: string; constraint?: string };
+
+  if (code !== '23505') return error;
+  if (constraint === 'users_email_key') return new EmailAlreadyInUseError();
+  if (constraint === 'users_phone_key') return new PhoneAlreadyInUseError();
+
+  return error;
+};
+
 export const clearUsers = async (): Promise<void> => {
   await pool.query('DELETE FROM users');
 };
 
-export const saveUserRepository = async (user: CreateUserInput): Promise<User> => {
+export const saveUserRepository = async (user: NewUserRecord): Promise<User> => {
   const query = `
-    INSERT INTO users (name, phone, address_street, address_number, address_city, address_state, address_neighborhood)
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    INSERT INTO users (name, email, phone, password_hash, address_street, address_number, address_city, address_state, address_neighborhood)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     RETURNING ${columns};
   `;
   const { address } = user;
   const values = [
     user.name,
+    user.email,
     user.phone,
+    user.passwordHash,
     address.street,
     address.number,
     address.city,
     address.state,
     address.neighborhood,
   ];
-  const { rows } = await pool.query<UserRow>(query, values);
+  const { rows } = await pool.query<UserRow>(query, values).catch((error: unknown) => {
+    throw translateUniqueViolation(error);
+  });
   const createdUser = rows[0];
 
   if (!createdUser) {
@@ -65,25 +85,24 @@ export const getUserByIdRepository = async (id: string): Promise<User> => {
   return toUser(row);
 };
 
-export const updateUserRepository = async (
-  id: string,
-  updates: Partial<CreateUserInput>,
-): Promise<User> => {
+export const updateUserRepository = async (id: string, updates: UpdateUserInput): Promise<User> => {
   const query = `
     UPDATE users
     SET name = COALESCE($1, name),
-        phone = COALESCE($2, phone),
-        address_street = COALESCE($3, address_street),
-        address_number = COALESCE($4, address_number),
-        address_city = COALESCE($5, address_city),
-        address_state = COALESCE($6, address_state),
-        address_neighborhood = COALESCE($7, address_neighborhood)
-    WHERE id = $8
+        email = COALESCE($2, email),
+        phone = COALESCE($3, phone),
+        address_street = COALESCE($4, address_street),
+        address_number = COALESCE($5, address_number),
+        address_city = COALESCE($6, address_city),
+        address_state = COALESCE($7, address_state),
+        address_neighborhood = COALESCE($8, address_neighborhood)
+    WHERE id = $9
     RETURNING ${columns};
   `;
   const { address } = updates;
   const values = [
     updates.name,
+    updates.email,
     updates.phone,
     address?.street,
     address?.number,
@@ -92,7 +111,9 @@ export const updateUserRepository = async (
     address?.neighborhood,
     id,
   ];
-  const { rows } = await pool.query<UserRow>(query, values);
+  const { rows } = await pool.query<UserRow>(query, values).catch((error: unknown) => {
+    throw translateUniqueViolation(error);
+  });
   const updatedUser = rows[0];
 
   if (!updatedUser) {
