@@ -1,0 +1,20 @@
+export class UserNotFoundError extends Error {
+  constructor(options?: ErrorOptions) {
+    super('User not found.', options);
+    this.name = 'UserNotFoundError';
+  }
+}
+
+export class InvalidUserDataError extends Error {
+  constructor() {
+    super('Invalid user data');
+    this.name = 'InvalidUserDataError';
+  }
+}
+
+export class InvalidUserUpdateError extends Error {
+  constructor() {
+    super('Invalid user update data');
+    this.name = 'InvalidUserUpdateError';
+  }
+}

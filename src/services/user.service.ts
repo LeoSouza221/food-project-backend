@@ -5,6 +5,7 @@ import {
   updateUserRepository,
   deleteUserRepository,
 } from '../repositories/users.repository.js';
+import { InvalidUserDataError, InvalidUserUpdateError } from '../errors/user.errors.js';
 import { BRAZILIAN_STATES } from '../types/user.js';
 import type { Address, BrazilianState, CreateUserInput, User } from '../types/user.js';
 
@@ -47,7 +48,7 @@ export const validateUser = (user: unknown): user is CreateUserInput => {
 
 export const createUser = (user: unknown): Promise<User> => {
   if (!validateUser(user)) {
-    throw new Error('Invalid user data');
+    throw new InvalidUserDataError();
   }
 
   return saveUserRepository(user);
@@ -76,7 +77,7 @@ const validateUserUpdate = (updates: unknown): updates is Partial<CreateUserInpu
 
 export const updateUser = (id: string, updates: unknown): Promise<User> => {
   if (!validateUserUpdate(updates)) {
-    throw new Error('Invalid user update data');
+    throw new InvalidUserUpdateError();
   }
 
   return updateUserRepository(id, updates);

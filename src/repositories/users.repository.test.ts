@@ -7,6 +7,7 @@ import {
   deleteUserRepository,
 } from './users.repository.js';
 import { pool } from '../database/pool.js';
+import { UserNotFoundError } from '../errors/user.errors.js';
 
 vi.mock('../database/pool.js', () => ({
   pool: { query: vi.fn() },
@@ -88,7 +89,7 @@ describe('getUserByIdRepository', () => {
 
   it('throws when the user does not exist', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(getUserByIdRepository(id)).rejects.toThrow('User not found.');
+    await expect(getUserByIdRepository(id)).rejects.toThrow(UserNotFoundError);
   });
 });
 
@@ -109,7 +110,7 @@ describe('updateUserRepository', () => {
 
   it('throws when the user does not exist', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(updateUserRepository(id, { name: 'X' })).rejects.toThrow('User not found.');
+    await expect(updateUserRepository(id, { name: 'X' })).rejects.toThrow(UserNotFoundError);
   });
 });
 
@@ -120,6 +121,6 @@ describe('deleteUserRepository', () => {
 
   it('throws when the user does not exist', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(deleteUserRepository(id)).rejects.toThrow('User not found.');
+    await expect(deleteUserRepository(id)).rejects.toThrow(UserNotFoundError);
   });
 });

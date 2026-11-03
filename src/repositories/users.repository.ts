@@ -1,4 +1,5 @@
 import type { CreateUserInput, User, UserRow } from '../types/user.js';
+import { UserNotFoundError } from '../errors/user.errors.js';
 import { pool } from '../database/pool.js';
 
 const columns =
@@ -58,7 +59,7 @@ export const getUserByIdRepository = async (id: string): Promise<User> => {
   const row = result.rows[0];
 
   if (!row) {
-    throw new Error('User not found.');
+    throw new UserNotFoundError();
   }
 
   return toUser(row);
@@ -95,7 +96,7 @@ export const updateUserRepository = async (
   const updatedUser = rows[0];
 
   if (!updatedUser) {
-    throw new Error('User not found.');
+    throw new UserNotFoundError();
   }
 
   return toUser(updatedUser);
@@ -105,6 +106,6 @@ export const deleteUserRepository = async (id: string): Promise<void> => {
   const result = await pool.query('DELETE FROM users WHERE id = $1', [id]);
 
   if (!result.rowCount) {
-    throw new Error('User not found.');
+    throw new UserNotFoundError();
   }
 };

@@ -6,6 +6,11 @@ import {
   getUsers,
   updateUser,
 } from '../services/user.service.js';
+import {
+  InvalidUserDataError,
+  InvalidUserUpdateError,
+  UserNotFoundError,
+} from '../errors/user.errors.js';
 import { InvalidJsonBodyError, readJsonBody, sendJson } from '../http/json.js';
 
 const isValidUserId = (id: string) =>
@@ -41,7 +46,7 @@ export const getUserByIdController = async (res: ServerResponse, userId: string)
     const user = await getUserById(userId);
     return sendJson(res, 200, { user });
   } catch (error) {
-    if (error instanceof Error && error.message === 'User not found.') {
+    if (error instanceof UserNotFoundError) {
       return sendJson(res, 404, { error: 'User not found' });
     }
 
@@ -65,7 +70,7 @@ export const createUserController = async (req: IncomingMessage, res: ServerResp
     const user = await createUser(parsedBody);
     return sendJson(res, 201, { message: 'User created', user });
   } catch (error) {
-    if (error instanceof Error && error.message === 'Invalid user data') {
+    if (error instanceof InvalidUserDataError) {
       return sendJson(res, 400, { error: 'Invalid user data' });
     }
 
@@ -95,11 +100,11 @@ export const updateUserController = async (
     const user = await updateUser(userId, parsedBody);
     return sendJson(res, 200, { message: 'User updated', user });
   } catch (error) {
-    if (error instanceof Error && error.message === 'User not found.') {
+    if (error instanceof UserNotFoundError) {
       return sendJson(res, 404, { error: 'User not found' });
     }
 
-    if (error instanceof Error && error.message === 'Invalid user update data') {
+    if (error instanceof InvalidUserUpdateError) {
       return sendJson(res, 400, { error: 'Invalid user data or update failed' });
     }
 
@@ -114,7 +119,7 @@ export const deleteUserController = async (res: ServerResponse, userId: string) 
     await deleteUser(userId);
     return sendJson(res, 200, { message: 'User deleted' });
   } catch (error) {
-    if (error instanceof Error && error.message === 'User not found.') {
+    if (error instanceof UserNotFoundError) {
       return sendJson(res, 404, { error: 'User not found' });
     }
 

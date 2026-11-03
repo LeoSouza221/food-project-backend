@@ -10,6 +10,7 @@ import {
 } from './user.service.js';
 import * as usersRepository from '../repositories/users.repository.js';
 import { BRAZILIAN_STATES } from '../types/user.js';
+import { InvalidUserDataError, InvalidUserUpdateError } from '../errors/user.errors.js';
 
 vi.mock('../repositories/users.repository.js', () => ({
   saveUserRepository: vi.fn(),
@@ -83,7 +84,7 @@ describe('createUser', () => {
   });
 
   it('throws on invalid data without hitting the repository', () => {
-    expect(() => createUser({})).toThrow('Invalid user data');
+    expect(() => createUser({})).toThrow(InvalidUserDataError);
     expect(usersRepository.saveUserRepository).not.toHaveBeenCalled();
   });
 });
@@ -125,7 +126,7 @@ describe('updateUser', () => {
     ['invalid state', { address: { ...address, state: 'XX' } }],
     ['partial address', { address: { street: 'Rua B' } }],
   ])('rejects %s', (_label, updates) => {
-    expect(() => updateUser(id, updates)).toThrow('Invalid user update data');
+    expect(() => updateUser(id, updates)).toThrow(InvalidUserUpdateError);
     expect(usersRepository.updateUserRepository).not.toHaveBeenCalled();
   });
 });

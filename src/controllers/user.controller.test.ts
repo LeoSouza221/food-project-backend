@@ -9,6 +9,11 @@ import {
   updateUserController,
 } from './user.controller.js';
 import * as userService from '../services/user.service.js';
+import {
+  InvalidUserDataError,
+  InvalidUserUpdateError,
+  UserNotFoundError,
+} from '../errors/user.errors.js';
 
 vi.mock('../services/user.service.js', () => ({
   createUser: vi.fn(),
@@ -103,10 +108,17 @@ describe('getUserByIdController', () => {
   });
 
   it('returns 404 when not found', async () => {
-    vi.mocked(userService.getUserById).mockRejectedValue(new Error('User not found.'));
+    vi.mocked(userService.getUserById).mockRejectedValue(new UserNotFoundError());
     const { res } = createResponse();
     await getUserByIdController(res, id);
     expectJson(res, 404, { error: 'User not found' });
+  });
+
+  it('returns 500 for an untyped error with a not-found message', async () => {
+    vi.mocked(userService.getUserById).mockRejectedValue(new Error('User not found.'));
+    const { res } = createResponse();
+    await getUserByIdController(res, id);
+    expectJson(res, 500, { error: 'Internal Server Error' });
   });
 
   it('returns 500 on unexpected errors', async () => {
@@ -130,7 +142,7 @@ describe('createUserController', () => {
   });
 
   it('returns 400 on invalid data', async () => {
-    vi.mocked(userService.createUser).mockRejectedValue(new Error('Invalid user data'));
+    vi.mocked(userService.createUser).mockRejectedValue(new InvalidUserDataError());
     const res = await sendBody(createUserController, '{}');
     expectJson(res, 400, { error: 'Invalid user data' });
   });
@@ -163,12 +175,12 @@ describe('updateUserController', () => {
   });
 
   it('returns 400 on invalid update data', async () => {
-    vi.mocked(userService.updateUser).mockRejectedValue(new Error('Invalid user update data'));
+    vi.mocked(userService.updateUser).mockRejectedValue(new InvalidUserUpdateError());
     expectJson(await update('{}'), 400, { error: 'Invalid user data or update failed' });
   });
 
   it('returns 404 when not found', async () => {
-    vi.mocked(userService.updateUser).mockRejectedValue(new Error('User not found.'));
+    vi.mocked(userService.updateUser).mockRejectedValue(new UserNotFoundError());
     expectJson(await update('{"name":"A"}'), 404, { error: 'User not found' });
   });
 
@@ -192,7 +204,7 @@ describe('deleteUserController', () => {
   });
 
   it('returns 404 when not found', async () => {
-    vi.mocked(userService.deleteUser).mockRejectedValue(new Error('User not found.'));
+    vi.mocked(userService.deleteUser).mockRejectedValue(new UserNotFoundError());
     const { res } = createResponse();
     await deleteUserController(res, id);
     expectJson(res, 404, { error: 'User not found' });
