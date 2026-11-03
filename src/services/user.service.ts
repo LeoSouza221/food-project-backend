@@ -27,9 +27,9 @@ const isValidUserName = (name: unknown): name is string => isNonEmptyText(name, 
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 const isValidEmail = (email: unknown): email is string =>
-  typeof email === 'string' && email.length <= 254 && EMAIL_PATTERN.test(email.trim());
+  typeof email === 'string' && email.trim().length <= 254 && EMAIL_PATTERN.test(email.trim());
 
-// Entre 8 e 72 caracteres (limita o custo do hash).
+// Política de senha: entre 8 e 72 caracteres.
 const isValidPassword = (password: unknown): password is string =>
   typeof password === 'string' && password.length >= 8 && password.length <= 72;
 
@@ -71,35 +71,76 @@ const isValidAddress = (address: unknown): address is Address => {
 const CREATE_KEYS = ['name', 'email', 'phone', 'password', 'address'];
 const UPDATE_KEYS = ['name', 'email', 'phone', 'address'];
 
-export const validateUser = (user: unknown): user is CreateUserInput => {
+type RawAddress = Partial<Record<keyof Address, string>>;
+type RawCreateUserInput = Partial<
+  Pick<CreateUserInput, 'name' | 'email' | 'phone' | 'password'>
+> & {
+  address?: RawAddress;
+};
+
+const hasValidCreateUserStructure = (user: unknown): user is RawCreateUserInput => {
   if (!isPlainObject(user)) return false;
   if (Object.keys(user).some((key) => !CREATE_KEYS.includes(key))) return false;
 
-  return (
-    isValidUserName(user.name) &&
-    isValidEmail(user.email) &&
-    isValidPhone(user.phone) &&
-    isValidPassword(user.password) &&
-    isValidAddress(user.address)
-  );
+  const scalarKeys = CREATE_KEYS.filter((key) => key !== 'address');
+  if (scalarKeys.some((key) => key in user && typeof user[key] !== 'string')) return false;
+
+  if (!('address' in user)) return true;
+  if (!isPlainObject(user.address)) return false;
+  if (Object.keys(user.address).some((key) => !ADDRESS_KEYS.includes(key))) return false;
+
+  return Object.values(user.address).every((value) => typeof value === 'string');
+};
+
+const normalizeCreateUserInput = (user: RawCreateUserInput): RawCreateUserInput => {
+  const normalized: RawCreateUserInput = { ...user };
+
+  if (user.name !== undefined) normalized.name = normalizeText(user.name);
+  if (user.email !== undefined) normalized.email = normalizeEmail(user.email);
+
+  if (user.address !== undefined) {
+    const address: RawAddress = { ...user.address };
+    for (const field of ['street', 'number', 'city', 'neighborhood'] as const) {
+      if (address[field] !== undefined) address[field] = normalizeText(address[field]);
+    }
+    if (address.state !== undefined) address.state = address.state.trim().toUpperCase();
+    normalized.address = address;
+  }
+
+  return normalized;
+};
+
+const isValidNormalizedCreateUser = (user: RawCreateUserInput): user is CreateUserInput =>
+  isValidUserName(user.name) &&
+  isValidEmail(user.email) &&
+  isValidPhone(user.phone) &&
+  isValidPassword(user.password) &&
+  isValidAddress(user.address);
+
+const getNormalizedCreateUserInput = (user: unknown): CreateUserInput | undefined => {
+  if (!hasValidCreateUserStructure(user)) return undefined;
+
+  const normalized = normalizeCreateUserInput(user);
+  if (!isValidNormalizedCreateUser(normalized)) return undefined;
+
+  return normalized;
+};
+
+export const validateUser = (user: unknown): user is CreateUserInput => {
+  return getNormalizedCreateUserInput(user) !== undefined;
 };
 
 export const createUser = async (user: unknown): Promise<User> => {
-  if (!validateUser(user)) {
+  const normalizedInput = getNormalizedCreateUserInput(user);
+  if (!normalizedInput) {
     throw new InvalidUserDataError();
   }
 
-  const { password, email, name, address, ...rest } = user;
-
-  const normalizedInput = {
-    ...rest,
-    name: normalizeText(name),
-    email: normalizeEmail(email),
+  const { password, ...userData } = normalizedInput;
+  return saveUserRepository({
+    ...userData,
     passwordHash: await hashPassword(password),
-    address: normalizeAddress(address),
-  };
-
-  return saveUserRepository(normalizedInput);
+  });
 };
 
 export const getUsers = (): Promise<User[]> => {

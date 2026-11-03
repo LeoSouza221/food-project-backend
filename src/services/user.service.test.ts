@@ -63,10 +63,13 @@ describe('validateUser', () => {
     ['null', null],
     ['array', []],
     ['missing name', { ...validUser, name: undefined }],
+    ['numeric name', { ...validUser, name: 123 }],
     ['missing email', { ...validUser, email: undefined }],
+    ['numeric email', { ...validUser, email: 123 }],
     ['email without @', { ...validUser, email: 'leonardo.example.com' }],
     ['long email', { ...validUser, email: `${'a'.repeat(250)}@a.com` }],
     ['missing password', { ...validUser, password: undefined }],
+    ['numeric password', { ...validUser, password: 12345678 }],
     ['short password', { ...validUser, password: '1234567' }],
     ['long password', { ...validUser, password: 'a'.repeat(73) }],
     ['role in payload', { ...validUser, role: 'admin' }],
@@ -80,6 +83,7 @@ describe('validateUser', () => {
     ['numeric phone', { ...validUser, phone: 44999999999 }],
     ['missing address', { ...validUser, address: undefined }],
     ['address not object', { ...validUser, address: 'Rua A' }],
+    ['address array', { ...validUser, address: [] }],
     ['invalid state', { ...validUser, address: { ...address, state: 'XX' } }],
     ['blank street', { ...validUser, address: { ...address, street: ' ' } }],
     ['numeric number', { ...validUser, address: { ...address, number: 12 } }],
@@ -140,6 +144,29 @@ describe('createUser', () => {
     await createUser({ ...validUser, email: '   leonardo@example.com   ' });
     expect(vi.mocked(usersRepository.saveUserRepository).mock.calls[0]?.[0].email).toBe(
       'leonardo@example.com',
+    );
+  });
+
+  it('validates field limits after normalizing values', async () => {
+    vi.mocked(usersRepository.saveUserRepository).mockResolvedValue(savedUser);
+    const email = `${' '.repeat(6)}${'a'.repeat(240)}@a.b${' '.repeat(6)}`;
+    const user = {
+      ...validUser,
+      name: `a${' '.repeat(100)}b`,
+      email,
+      address: { ...address, street: `a${' '.repeat(150)}b` },
+    };
+
+    expect(validateUser(user)).toBe(true);
+    await createUser(user);
+
+    expect(usersRepository.saveUserRepository).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'a b',
+        email: `${'a'.repeat(240)}@a.b`,
+        address: { ...address, street: 'a b' },
+        passwordHash: expect.stringMatching(/^scrypt\$[0-9a-f]+\$[0-9a-f]+$/),
+      }),
     );
   });
 
