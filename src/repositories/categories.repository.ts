@@ -61,8 +61,9 @@ export const updateCategoryRepository = async (
   };
 };
 
-const isForeignKeyViolation = (error: unknown): boolean =>
-  typeof error === 'object' && error !== null && 'code' in error && error.code === '23503';
+const isForeignKeyViolation = (error: unknown): boolean => {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === '23503';
+};
 
 export const deleteCategoryRepository = async (id: number): Promise<void> => {
   const query = 'DELETE FROM categories WHERE id = $1';

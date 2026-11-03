@@ -35,6 +35,8 @@ beforeAll(async () => {
 afterAll(async () => {
   try {
     if (categoryIds.length > 0) {
+      await pool.query('DELETE FROM products WHERE category_id = ANY($1::int[])', [categoryIds]);
+
       await pool.query('DELETE FROM categories WHERE id = ANY($1::int[])', [categoryIds]);
     }
   } finally {
