@@ -65,6 +65,11 @@ export type User = {
   address: Address;
 };
 
+export type UserAuthRecord = {
+  user: User;
+  passwordHash: string;
+};
+
 export type UserRow = {
   id: string;
   name: string;

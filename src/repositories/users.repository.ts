@@ -1,4 +1,11 @@
-import type { NewUserRecord, UpdateUserInput, User, UserPublicRow } from '../types/user.js';
+import type {
+  NewUserRecord,
+  UpdateUserInput,
+  User,
+  UserAuthRecord,
+  UserPublicRow,
+  UserRow,
+} from '../types/user.js';
 import {
   EmailAlreadyInUseError,
   PhoneAlreadyInUseError,
@@ -131,4 +138,21 @@ export const deleteUserRepository = async (id: string): Promise<void> => {
   if (!result.rowCount) {
     throw new UserNotFoundError();
   }
+};
+
+export const findUserByIdentifierRepository = async (
+  identifier: string,
+): Promise<UserAuthRecord> => {
+  const query = `SELECT ${columns}, password_hash FROM users WHERE email = $1 OR phone = $1`;
+  const result = await pool.query<UserRow>(query, [identifier]);
+  const row = result.rows[0];
+
+  if (!row) {
+    throw new UserNotFoundError();
+  }
+
+  return {
+    user: toUser(row),
+    passwordHash: row.password_hash,
+  };
 };

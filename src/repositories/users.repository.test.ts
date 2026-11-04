@@ -5,6 +5,7 @@ import {
   getUserByIdRepository,
   updateUserRepository,
   deleteUserRepository,
+  findUserByIdentifierRepository,
 } from './users.repository.js';
 import { pool } from '../database/pool.js';
 import {
@@ -167,5 +168,28 @@ describe('deleteUserRepository', () => {
   it('throws when the user does not exist', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(deleteUserRepository(id)).rejects.toThrow(UserNotFoundError);
+  });
+});
+
+describe('findUserByIdentifierRepository', () => {
+  it('returns the user with password hash', async () => {
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        {
+          ...row,
+          password_hash: 'hashed',
+        },
+      ],
+      rowCount: 1,
+    });
+    await expect(findUserByIdentifierRepository('a@a.com')).resolves.toEqual({
+      user,
+      passwordHash: 'hashed',
+    });
+  });
+
+  it('throws when the user does not exist', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(findUserByIdentifierRepository('a@a.com')).rejects.toThrow(UserNotFoundError);
   });
 });
