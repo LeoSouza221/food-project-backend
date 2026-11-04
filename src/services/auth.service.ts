@@ -3,13 +3,14 @@ import { InvalidCredentialsError } from '../errors/auth.errors.js';
 import { findUserByIdentifierRepository } from '../repositories/users.repository.js';
 import type { User } from '../types/user.js';
 import { verifyPassword } from './password.js';
+import { generateJWT } from './jwt.js';
 
 const isInvalidIdentifier = (identifier: string) => {
   return typeof identifier !== 'string' || identifier.trim() === '';
 };
 
 const isInvalidPassword = (password: string) => {
-  return !password || typeof password !== 'string';
+  return typeof password !== 'string' || password.length === 0;
 };
 
 export const authenticateUser = async (identifier: string, password: string): Promise<User> => {
@@ -35,4 +36,15 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     }
     throw error;
   }
+};
+
+export const loginUser = async (
+  identifier: string,
+  password: string,
+): Promise<{ user: User; token: string }> => {
+  const user = await authenticateUser(identifier, password);
+
+  const token = await generateJWT(user.id, user.role);
+
+  return { user, token };
 };
