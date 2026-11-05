@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { categoriesRoutes } from './categories.routes.js';
 import { productsRoutes } from './products.routes.js';
 import { usersRoutes } from './users.routes.js';
+import { authRoutes } from './auth.routes.js';
 import { sendJson } from '../http/json.js';
 
 export const routes = (req: IncomingMessage, res: ServerResponse) => {
@@ -51,6 +52,10 @@ export const routes = (req: IncomingMessage, res: ServerResponse) => {
 
   if (segments[0] === 'users') {
     return usersRoutes(req, res, segments);
+  }
+
+  if (segments[0] === 'auth') {
+    return authRoutes(req, res, segments);
   }
 
   return sendJson(res, 404, { error: 'Not Found' });
