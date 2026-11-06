@@ -186,6 +186,8 @@ describe('categoriesRoutes', () => {
   );
 
   it.each([
+    ['GET', ['categories', '123', 'extra']],
+    ['GET', ['categories', '']],
     ['POST', ['categories', '123']],
     ['PATCH', ['categories']],
     ['PATCH', ['categories', '']],
@@ -209,28 +211,18 @@ describe('categoriesRoutes', () => {
     expect(verifyJWT).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['categories', '123', 'extra'],
-    ['categories', ''],
-  ])('returns 400 for a malformed GET route after authentication: %j', async (...segments) => {
+  it('returns 400 before authenticating a malformed GET route with a token', async () => {
     const res = createResponse();
 
-    await categoriesRoutes(createRequest('GET', 'Bearer admin-token'), res, segments);
+    await categoriesRoutes(createRequest('GET', 'Bearer admin-token'), res, [
+      'categories',
+      '123',
+      'extra',
+    ]);
 
-    expect(verifyJWT).toHaveBeenCalledWith('admin-token');
     expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
     expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Bad Request' }));
-    expect(listCategoriesController).not.toHaveBeenCalled();
-    expect(getCategoryByIdController).not.toHaveBeenCalled();
-  });
-
-  it('returns 401 before validating a malformed GET route without a token', async () => {
-    const res = createResponse();
-
-    await categoriesRoutes(createRequest('GET'), res, ['categories', '123', 'extra']);
-
-    expect(res.writeHead).toHaveBeenCalledWith(401, { 'Content-Type': 'application/json' });
-    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Unauthorized' }));
+    expect(verifyJWT).not.toHaveBeenCalled();
     expect(listCategoriesController).not.toHaveBeenCalled();
     expect(getCategoryByIdController).not.toHaveBeenCalled();
   });

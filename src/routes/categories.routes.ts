@@ -29,17 +29,21 @@ export const categoriesRoutes = async (
   }
 
   if (req.method === 'GET') {
-    const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
-
-    if (!authenticatedReq) {
-      return;
-    }
-
     if (segments.length === 1) {
+      const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+
+      if (!authenticatedReq) {
+        return;
+      }
       return listCategoriesController(res);
     }
 
     if (segments.length === 2 && segments[1]) {
+      const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+
+      if (!authenticatedReq) {
+        return;
+      }
       return getCategoryByIdController(res, segments[1]);
     }
 

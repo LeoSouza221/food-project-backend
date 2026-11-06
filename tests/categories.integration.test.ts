@@ -167,11 +167,11 @@ describe('Categories API integration', () => {
     },
   );
 
-  it('authenticates before rejecting a malformed GET path', async () => {
+  it('rejects a malformed GET path before authentication', async () => {
     const path = `${baseUrl}/categories/1/extra`;
     const unauthenticated = await fetch(path);
-    expect(unauthenticated.status).toBe(401);
-    expect(await unauthenticated.json()).toEqual({ error: 'Unauthorized' });
+    expect(unauthenticated.status).toBe(400);
+    expect(await unauthenticated.json()).toEqual({ error: 'Bad Request' });
 
     const authenticated = await fetch(path, {
       headers: { Authorization: `Bearer ${customerToken}` },
