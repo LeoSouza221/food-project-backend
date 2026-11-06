@@ -7,8 +7,13 @@ import {
   updateUserController,
 } from '../controllers/user.controller.js';
 import { sendJson } from '../http/json.js';
+import { authMiddleware } from '../middlewares/auth.middleware.js';
 
-export const usersRoutes = (req: IncomingMessage, res: ServerResponse, segments: string[]) => {
+export const usersRoutes = async (
+  req: IncomingMessage,
+  res: ServerResponse,
+  segments: string[],
+) => {
   if (req.method === 'POST') {
     if (segments.length !== 1) {
       return sendJson(res, 400, { error: 'Bad Request' });
@@ -23,6 +28,14 @@ export const usersRoutes = (req: IncomingMessage, res: ServerResponse, segments:
     }
 
     if (segments.length === 2 && segments[1]) {
+      if (segments[1] === 'me') {
+        const authenticatedReq = await authMiddleware(req, res);
+        if (!authenticatedReq) {
+          return;
+        }
+        return getUserByIdController(res, authenticatedReq.auth.userId);
+      }
+
       return getUserByIdController(res, segments[1]);
     }
 

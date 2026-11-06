@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { UserRole } from '../types/user.js';
+import type { VerifiedTokenPayload } from '../types/jwt.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -11,7 +12,7 @@ const JWT_SECRET_BYTES = new TextEncoder().encode(JWT_SECRET);
 export { JWT_SECRET_BYTES };
 
 const isValidUserRole = (role: unknown): role is UserRole => {
-  return ['customer', 'admin'].includes(role as UserRole);
+  return typeof role === 'string' && ['customer', 'admin'].includes(role);
 };
 
 export const generateJWT = async (id: string, role: UserRole) => {
@@ -25,7 +26,7 @@ export const generateJWT = async (id: string, role: UserRole) => {
   return jwt;
 };
 
-export const verifyJWT = async (token: string) => {
+export const verifyJWT = async (token: string): Promise<VerifiedTokenPayload> => {
   const { payload } = await jwtVerify(token, JWT_SECRET_BYTES, {
     algorithms: ['HS256'],
   });
@@ -38,5 +39,8 @@ export const verifyJWT = async (token: string) => {
     throw new Error('Invalid role in token');
   }
 
-  return payload;
+  return {
+    sub: payload.sub,
+    role: payload.role,
+  };
 };
