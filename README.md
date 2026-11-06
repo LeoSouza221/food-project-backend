@@ -97,6 +97,14 @@ tests/
 
 Unit tests remain next to their source files; HTTP integration tests live in `tests/`.
 
+## Route authentication
+
+`requireAuth(req, res)` authenticates a request and returns it with its `auth` context.
+Pass an array of allowed roles as the third argument to additionally enforce authorization,
+for example `requireAuth(req, res, ['admin'])`. If it returns `null`, stop processing: the
+middleware has already sent a 401 or 403 response. An empty role array denies every role.
+Validate the route shape before applying the protection.
+
 ## Status
 
 This project is under active development, with a focus on hands-on learning and the incremental evolution of backend architecture.
