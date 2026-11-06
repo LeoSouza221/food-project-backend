@@ -7,14 +7,25 @@ import {
   updateCategoryController,
 } from '../controllers/category.controller.js';
 import { sendJson } from '../http/json.js';
+import { requireAuth } from '../middlewares/require-auth.js';
 
-export const categoriesRoutes = (req: IncomingMessage, res: ServerResponse, segments: string[]) => {
+export const categoriesRoutes = async (
+  req: IncomingMessage,
+  res: ServerResponse,
+  segments: string[],
+) => {
   if (req.method === 'POST') {
     if (segments.length !== 1) {
       return sendJson(res, 400, { error: 'Bad Request' });
     }
 
-    return createCategoryController(req, res);
+    const authenticatedReq = await requireAuth(req, res, ['admin']);
+
+    if (!authenticatedReq) {
+      return;
+    }
+
+    return createCategoryController(authenticatedReq, res);
   }
 
   if (req.method === 'GET') {

@@ -1,15 +1,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { pool } from '../src/database/pool.js';
+import { generateJWT } from '../src/services/jwt.js';
 
 const app = createApp();
 const categoryIds: number[] = [];
 let baseUrl: string;
+let adminToken: string;
+let customerToken: string;
 
 const createCategory = async (name: string) => {
   const response = await fetch(`${baseUrl}/categories`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
     body: JSON.stringify({ name }),
   });
 
@@ -30,6 +33,8 @@ beforeAll(async () => {
   }
 
   baseUrl = `http://127.0.0.1:${address.port}`;
+  adminToken = await generateJWT('category-test-admin', 'admin');
+  customerToken = await generateJWT('category-test-customer', 'customer');
 });
 
 afterAll(async () => {
@@ -54,6 +59,26 @@ afterAll(async () => {
 });
 
 describe('Categories API integration', () => {
+  it.each([
+    ['missing', undefined, 401, 'Unauthorized'],
+    ['invalid', 'Bearer invalid-token', 401, 'Unauthorized'],
+    ['customer', () => `Bearer ${customerToken}`, 403, 'Forbidden'],
+  ])('rejects category creation with %s credentials', async (_, authorization, status, error) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authorization) {
+      headers.Authorization = typeof authorization === 'function' ? authorization() : authorization;
+    }
+
+    const response = await fetch(`${baseUrl}/categories`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: 'Unauthorized category' }),
+    });
+
+    expect(response.status).toBe(status);
+    expect(await response.json()).toEqual({ error });
+  });
+
   it('creates a category', async () => {
     const category = await createCategory('Lanches integração');
 
@@ -66,7 +91,7 @@ describe('Categories API integration', () => {
   it('rejects invalid category data and malformed JSON', async () => {
     const invalidCategory = await fetch(`${baseUrl}/categories`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: ' ' }),
     });
     expect(invalidCategory.status).toBe(400);
@@ -74,7 +99,7 @@ describe('Categories API integration', () => {
 
     const invalidJson = await fetch(`${baseUrl}/categories`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: '{ name: }',
     });
     expect(invalidJson.status).toBe(400);
@@ -179,7 +204,7 @@ describe('Categories API integration', () => {
 
     const tooLongCreate = await fetch(`${baseUrl}/categories`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: 'a'.repeat(101) }),
     });
     expect(tooLongCreate.status).toBe(400);
@@ -199,7 +224,7 @@ describe('Categories API integration', () => {
   it('rejects unknown properties on create and update', async () => {
     const createResponse = await fetch(`${baseUrl}/categories`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: 'Com extra', description: 'não permitido' }),
     });
     expect(createResponse.status).toBe(400);

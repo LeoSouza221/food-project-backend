@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { pool } from '../src/database/pool.js';
+import { SignJWT } from 'jose';
+import { JWT_SECRET_BYTES } from '../src/services/jwt.js';
 
 const app = createApp();
 const userIds: string[] = [];
@@ -247,5 +249,65 @@ describe('Users API integration', () => {
 
     const again = await fetch(`${baseUrl}/users/${created.id}`, { method: 'DELETE' });
     expect(again.status).toBe(404);
+  });
+
+  describe('GET /users/me', () => {
+    it('should return 401 for unauthorized access to /users/me', async () => {
+      const response = await fetch(`${baseUrl}/users/me`);
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    });
+    it('should return 200 for authorized access to /users/me', async () => {
+      const { payload, ...created } = await createUser();
+      const loginResponse = await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: payload.email, password }),
+      });
+      const { data: { token } = {} } = await loginResponse.json();
+
+      const response = await fetch(`${baseUrl}/users/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({
+        user: { id: created.id, role: 'customer', ...payload },
+      });
+    });
+    it('should return 401 for invalid token access to /users/me', async () => {
+      const response = await fetch(`${baseUrl}/users/me`, {
+        headers: { Authorization: 'Bearer invalidtoken' },
+      });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    });
+    it('should return 401 for malformed token access to /users/me', async () => {
+      const response = await fetch(`${baseUrl}/users/me`, {
+        headers: { Authorization: 'Bearer malformed.token' },
+      });
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    });
+    it('should return 401 for expired token access to /users/me', async () => {
+      const { payload, ...created } = await createUser();
+
+      const now = Math.floor(Date.now() / 1000);
+
+      const expiredToken = await new SignJWT({
+        role: 'customer',
+      })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject(created.id)
+        .setIssuedAt(now - 3600)
+        .setExpirationTime(now - 1800)
+        .sign(JWT_SECRET_BYTES);
+
+      const response = await fetch(`${baseUrl}/users/me`, {
+        headers: { Authorization: `Bearer ${expiredToken}` },
+      });
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    });
   });
 });
