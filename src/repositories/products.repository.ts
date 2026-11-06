@@ -105,3 +105,12 @@ export const updateProductRepository = async (
     category: updatedProduct.category_id,
   };
 };
+
+export const deleteProductRepository = async (id: string): Promise<void> => {
+  const query = 'DELETE FROM products WHERE id = $1';
+  const result = await pool.query(query, [id]);
+
+  if (result.rowCount === 0) {
+    throw new Error('Product not found.');
+  }
+};

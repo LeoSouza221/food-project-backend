@@ -240,7 +240,7 @@ describe('Categories API integration', () => {
     const category = await createCategory('Categoria com produto');
     const productResponse = await fetch(`${baseUrl}/products`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: 'Produto vinculado', price: 10, category: category.id }),
     });
     expect(productResponse.status).toBe(201);

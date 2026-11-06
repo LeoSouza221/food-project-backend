@@ -5,6 +5,7 @@ import {
   getProducts,
   getProductById,
   updateProduct,
+  deleteProduct,
 } from '../services/product.service.js';
 import { InvalidJsonBodyError, readJsonBody, sendJson } from '../http/json.js';
 
@@ -106,6 +107,27 @@ export const updateProductController = async (
       ['Category not found.', 'Invalid product update data'].includes(error.message)
     ) {
       return sendJson(res, 400, { error: 'Invalid product data or update failed' });
+    }
+
+    return sendJson(res, 500, { error: 'Internal Server Error' });
+  }
+};
+
+export const deleteProductController = async (res: ServerResponse, productId: string) => {
+  if (!productId) {
+    return sendJson(res, 400, { error: 'Product ID is required' });
+  }
+
+  if (!isValidProductId(productId)) {
+    return sendJson(res, 400, { error: 'Invalid product ID' });
+  }
+
+  try {
+    await deleteProduct(productId);
+    return sendJson(res, 200, { message: 'Product deleted' });
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Product not found.') {
+      return sendJson(res, 404, { error: 'Product not found' });
     }
 
     return sendJson(res, 500, { error: 'Internal Server Error' });

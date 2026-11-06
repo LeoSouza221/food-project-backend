@@ -3,6 +3,7 @@ import {
   getProductsRepository,
   getProductByIdRepository,
   updateProductRepository,
+  deleteProductRepository,
 } from '../repositories/products.repository.js';
 import type { CreateProductInput, Product } from '../types/product.js';
 
@@ -94,4 +95,8 @@ export const updateProduct = (id: string, updates: unknown): Promise<Product> =>
   }
 
   return updateProductRepository(id, updates);
+};
+
+export const deleteProduct = (id: string): Promise<void> => {
+  return deleteProductRepository(id);
 };
