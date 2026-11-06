@@ -35,25 +35,35 @@ beforeEach(() => {
 });
 
 describe('categoriesRoutes', () => {
-  it('dispatches GET /categories to the list controller', async () => {
-    const req = createRequest('GET');
-    const res = createResponse();
+  it.each(['customer', 'admin'] as const)(
+    'dispatches GET /categories to the list controller for an authenticated %s',
+    async (role) => {
+      const req = createRequest('GET', 'Bearer valid-token');
+      const res = createResponse();
+      vi.mocked(verifyJWT).mockResolvedValueOnce({ sub: 'user-id', role });
 
-    await categoriesRoutes(req, res, ['categories']);
+      await categoriesRoutes(req, res, ['categories']);
 
-    expect(listCategoriesController).toHaveBeenCalledOnce();
-    expect(listCategoriesController).toHaveBeenCalledWith(res);
-  });
+      expect(listCategoriesController).toHaveBeenCalledOnce();
+      expect(listCategoriesController).toHaveBeenCalledWith(res);
+      expect(req).toHaveProperty('auth', { userId: 'user-id', role });
+    },
+  );
 
-  it('dispatches GET /categories/:id to the detail controller', async () => {
-    const req = createRequest('GET');
-    const res = createResponse();
+  it.each(['customer', 'admin'] as const)(
+    'dispatches GET /categories/:id to the detail controller for an authenticated %s',
+    async (role) => {
+      const req = createRequest('GET', 'Bearer valid-token');
+      const res = createResponse();
+      vi.mocked(verifyJWT).mockResolvedValueOnce({ sub: 'user-id', role });
 
-    await categoriesRoutes(req, res, ['categories', '123']);
+      await categoriesRoutes(req, res, ['categories', '123']);
 
-    expect(getCategoryByIdController).toHaveBeenCalledOnce();
-    expect(getCategoryByIdController).toHaveBeenCalledWith(res, '123');
-  });
+      expect(getCategoryByIdController).toHaveBeenCalledOnce();
+      expect(getCategoryByIdController).toHaveBeenCalledWith(res, '123');
+      expect(req).toHaveProperty('auth', { userId: 'user-id', role });
+    },
+  );
 
   it('dispatches POST /categories with an authenticated admin to the create controller', async () => {
     const req = createRequest('POST', 'Bearer admin-token');
@@ -99,28 +109,83 @@ describe('categoriesRoutes', () => {
   });
 
   it('dispatches PATCH /categories/:id to the update controller', async () => {
-    const req = createRequest('PATCH');
+    const req = createRequest('PATCH', 'Bearer admin-token');
     const res = createResponse();
 
     await categoriesRoutes(req, res, ['categories', '123']);
 
     expect(updateCategoryController).toHaveBeenCalledOnce();
     expect(updateCategoryController).toHaveBeenCalledWith(req, res, '123');
+    expect(req).toHaveProperty('auth', { userId: 'admin-id', role: 'admin' });
   });
 
   it('dispatches DELETE /categories/:id to the delete controller', async () => {
-    const req = createRequest('DELETE');
+    const req = createRequest('DELETE', 'Bearer admin-token');
     const res = createResponse();
 
     await categoriesRoutes(req, res, ['categories', '123']);
 
     expect(deleteCategoryController).toHaveBeenCalledOnce();
     expect(deleteCategoryController).toHaveBeenCalledWith(res, '123');
+    expect(req).toHaveProperty('auth', { userId: 'admin-id', role: 'admin' });
   });
 
   it.each([
-    ['GET', ['categories', '123', 'extra']],
-    ['GET', ['categories', '']],
+    ['GET', ['categories']],
+    ['GET', ['categories', '123']],
+    ['PATCH', ['categories', '123']],
+    ['DELETE', ['categories', '123']],
+  ])('returns 401 for unauthenticated %s %j', async (method, segments) => {
+    const res = createResponse();
+
+    await categoriesRoutes(createRequest(method), res, segments);
+
+    expect(res.writeHead).toHaveBeenCalledWith(401, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Unauthorized' }));
+    expect(listCategoriesController).not.toHaveBeenCalled();
+    expect(getCategoryByIdController).not.toHaveBeenCalled();
+    expect(updateCategoryController).not.toHaveBeenCalled();
+    expect(deleteCategoryController).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['GET', ['categories']],
+    ['GET', ['categories', '123']],
+    ['PATCH', ['categories', '123']],
+    ['DELETE', ['categories', '123']],
+  ])('returns 401 for an invalid token on %s %j', async (method, segments) => {
+    const res = createResponse();
+    vi.mocked(verifyJWT).mockRejectedValueOnce(new Error('Invalid token'));
+
+    await categoriesRoutes(createRequest(method, 'Bearer invalid-token'), res, segments);
+
+    expect(res.writeHead).toHaveBeenCalledWith(401, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Unauthorized' }));
+    expect(listCategoriesController).not.toHaveBeenCalled();
+    expect(getCategoryByIdController).not.toHaveBeenCalled();
+    expect(updateCategoryController).not.toHaveBeenCalled();
+    expect(deleteCategoryController).not.toHaveBeenCalled();
+  });
+
+  it.each(['PATCH', 'DELETE'])(
+    'returns 403 for a customer on %s /categories/:id',
+    async (method) => {
+      const res = createResponse();
+      vi.mocked(verifyJWT).mockResolvedValueOnce({ sub: 'customer-id', role: 'customer' });
+
+      await categoriesRoutes(createRequest(method, 'Bearer customer-token'), res, [
+        'categories',
+        '123',
+      ]);
+
+      expect(res.writeHead).toHaveBeenCalledWith(403, { 'Content-Type': 'application/json' });
+      expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Forbidden' }));
+      expect(updateCategoryController).not.toHaveBeenCalled();
+      expect(deleteCategoryController).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
     ['POST', ['categories', '123']],
     ['PATCH', ['categories']],
     ['PATCH', ['categories', '']],
@@ -142,6 +207,32 @@ describe('categoriesRoutes', () => {
     expect(listCategoriesController).not.toHaveBeenCalled();
     expect(updateCategoryController).not.toHaveBeenCalled();
     expect(verifyJWT).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['categories', '123', 'extra'],
+    ['categories', ''],
+  ])('returns 400 for a malformed GET route after authentication: %j', async (...segments) => {
+    const res = createResponse();
+
+    await categoriesRoutes(createRequest('GET', 'Bearer admin-token'), res, segments);
+
+    expect(verifyJWT).toHaveBeenCalledWith('admin-token');
+    expect(res.writeHead).toHaveBeenCalledWith(400, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Bad Request' }));
+    expect(listCategoriesController).not.toHaveBeenCalled();
+    expect(getCategoryByIdController).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 before validating a malformed GET route without a token', async () => {
+    const res = createResponse();
+
+    await categoriesRoutes(createRequest('GET'), res, ['categories', '123', 'extra']);
+
+    expect(res.writeHead).toHaveBeenCalledWith(401, { 'Content-Type': 'application/json' });
+    expect(res.end).toHaveBeenCalledWith(JSON.stringify({ error: 'Unauthorized' }));
+    expect(listCategoriesController).not.toHaveBeenCalled();
+    expect(getCategoryByIdController).not.toHaveBeenCalled();
   });
 
   it('returns 405 for unsupported methods', async () => {

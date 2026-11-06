@@ -79,6 +79,44 @@ describe('Categories API integration', () => {
     expect(await response.json()).toEqual({ error });
   });
 
+  it.each([
+    ['GET', '/categories'],
+    ['GET', '/categories/1'],
+    ['PATCH', '/categories/1'],
+    ['DELETE', '/categories/1'],
+  ])('rejects %s %s without a valid token', async (method, path) => {
+    for (const headers of [{}, { Authorization: 'Bearer invalid-token' }]) {
+      const response = await fetch(`${baseUrl}${path}`, { method, headers });
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+    }
+  });
+
+  it.each(['PATCH', 'DELETE'])(
+    'rejects %s for a customer without changing the category',
+    async (method) => {
+      const category = await createCategory(`Categoria protegida ${method}`);
+      const response = await fetch(`${baseUrl}/categories/${category.id}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${customerToken}`,
+        },
+        ...(method === 'PATCH' ? { body: JSON.stringify({ name: 'Alteração proibida' }) } : {}),
+      });
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: 'Forbidden' });
+
+      const detail = await fetch(`${baseUrl}/categories/${category.id}`, {
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
+      expect(detail.status).toBe(200);
+      expect(await detail.json()).toEqual({ category });
+    },
+  );
+
   it('creates a category', async () => {
     const category = await createCategory('Lanches integração');
 
@@ -106,26 +144,52 @@ describe('Categories API integration', () => {
     expect(await invalidJson.json()).toEqual({ error: 'Invalid JSON' });
   });
 
-  it('lists categories and retrieves one by ID', async () => {
-    const category = await createCategory('Bebidas integração');
+  it.each(['customer', 'admin'] as const)(
+    'lists categories and retrieves one by ID as %s',
+    async (role) => {
+      const category = await createCategory('Bebidas integração');
+      const token = role === 'admin' ? adminToken : customerToken;
 
-    const listResponse = await fetch(`${baseUrl}/categories`);
-    expect(listResponse.status).toBe(200);
-    expect(await listResponse.json()).toEqual({
-      categories: expect.arrayContaining([category]),
+      const listResponse = await fetch(`${baseUrl}/categories`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(listResponse.status).toBe(200);
+      expect(await listResponse.json()).toEqual({
+        categories: expect.arrayContaining([category]),
+      });
+
+      const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      expect(detailResponse.status).toBe(200);
+      expect(await detailResponse.json()).toEqual({ category });
+    },
+  );
+
+  it('authenticates before rejecting a malformed GET path', async () => {
+    const path = `${baseUrl}/categories/1/extra`;
+    const unauthenticated = await fetch(path);
+    expect(unauthenticated.status).toBe(401);
+    expect(await unauthenticated.json()).toEqual({ error: 'Unauthorized' });
+
+    const authenticated = await fetch(path, {
+      headers: { Authorization: `Bearer ${customerToken}` },
     });
-
-    const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`);
-    expect(detailResponse.status).toBe(200);
-    expect(await detailResponse.json()).toEqual({ category });
+    expect(authenticated.status).toBe(400);
+    expect(await authenticated.json()).toEqual({ error: 'Bad Request' });
   });
 
   it('returns 400 for an invalid ID and 404 for a missing category', async () => {
-    const invalidIdResponse = await fetch(`${baseUrl}/categories/not-an-id`);
+    const invalidIdResponse = await fetch(`${baseUrl}/categories/not-an-id`, {
+      headers: { Authorization: `Bearer ${customerToken}` },
+    });
     expect(invalidIdResponse.status).toBe(400);
     expect(await invalidIdResponse.json()).toEqual({ error: 'Invalid category ID' });
 
-    const missingResponse = await fetch(`${baseUrl}/categories/2147483647`);
+    const missingResponse = await fetch(`${baseUrl}/categories/2147483647`, {
+      headers: { Authorization: `Bearer ${customerToken}` },
+    });
     expect(missingResponse.status).toBe(404);
     expect(await missingResponse.json()).toEqual({ error: 'Category not found' });
   });
@@ -135,7 +199,7 @@ describe('Categories API integration', () => {
 
     const updateResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: 'Categoria depois' }),
     });
     expect(updateResponse.status).toBe(200);
@@ -146,7 +210,7 @@ describe('Categories API integration', () => {
 
     const invalidUpdateResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: '' }),
     });
     expect(invalidUpdateResponse.status).toBe(400);
@@ -160,11 +224,14 @@ describe('Categories API integration', () => {
 
     const deleteResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
       method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
     });
     expect(deleteResponse.status).toBe(200);
     expect(await deleteResponse.json()).toEqual({ message: 'Category deleted' });
 
-    const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`);
+    const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
+      headers: { Authorization: `Bearer ${customerToken}` },
+    });
     expect(detailResponse.status).toBe(404);
     expect(await detailResponse.json()).toEqual({ error: 'Category not found' });
   });
@@ -182,11 +249,14 @@ describe('Categories API integration', () => {
     try {
       const blockedResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
         method: 'DELETE',
+        headers: { Authorization: `Bearer ${adminToken}` },
       });
       expect(blockedResponse.status).toBe(409);
       expect(await blockedResponse.json()).toEqual({ error: 'Category has linked products' });
 
-      const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`);
+      const detailResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
+        headers: { Authorization: `Bearer ${customerToken}` },
+      });
       expect(detailResponse.status).toBe(200);
     } finally {
       await pool.query('DELETE FROM products WHERE id = $1', [product.id]);
@@ -194,6 +264,7 @@ describe('Categories API integration', () => {
 
     const deleteResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
       method: 'DELETE',
+      headers: { Authorization: `Bearer ${adminToken}` },
     });
     expect(deleteResponse.status).toBe(200);
   });
@@ -212,12 +283,14 @@ describe('Categories API integration', () => {
 
     const tooLongUpdate = await fetch(`${baseUrl}/categories/${category.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: 'b'.repeat(101) }),
     });
     expect(tooLongUpdate.status).toBe(400);
 
-    const detail = await fetch(`${baseUrl}/categories/${category.id}`);
+    const detail = await fetch(`${baseUrl}/categories/${category.id}`, {
+      headers: { Authorization: `Bearer ${customerToken}` },
+    });
     expect(await detail.json()).toEqual({ category });
   });
 
@@ -233,7 +306,7 @@ describe('Categories API integration', () => {
     const category = await createCategory('Sem extra');
     const updateResponse = await fetch(`${baseUrl}/categories/${category.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken}` },
       body: JSON.stringify({ name: 'Novo', description: 'não permitido' }),
     });
     expect(updateResponse.status).toBe(400);

@@ -29,6 +29,12 @@ export const categoriesRoutes = async (
   }
 
   if (req.method === 'GET') {
+    const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+
+    if (!authenticatedReq) {
+      return;
+    }
+
     if (segments.length === 1) {
       return listCategoriesController(res);
     }
@@ -45,8 +51,14 @@ export const categoriesRoutes = async (
       return sendJson(res, 400, { error: 'Bad Request' });
     }
 
+    const authenticatedReq = await requireAuth(req, res, ['admin']);
+
+    if (!authenticatedReq) {
+      return;
+    }
+
     if (req.method === 'PATCH') {
-      return updateCategoryController(req, res, segments[1]);
+      return updateCategoryController(authenticatedReq, res, segments[1]);
     }
 
     return deleteCategoryController(res, segments[1]);
