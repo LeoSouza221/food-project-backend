@@ -29,21 +29,21 @@ export const productsRoutes = async (
   }
 
   if (req.method === 'GET') {
-    if (segments.length === 1) {
-      const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+    if (segments.length !== 1 && !(segments.length === 2 && segments[1])) {
+      return sendJson(res, 400, { error: 'Bad Request' });
+    }
 
-      if (!authenticatedReq) {
-        return;
-      }
+    const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+
+    if (!authenticatedReq) {
+      return;
+    }
+
+    if (segments.length === 1) {
       return listProductsController(res);
     }
 
     if (segments.length === 2 && segments[1]) {
-      const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
-
-      if (!authenticatedReq) {
-        return;
-      }
       return listProductByIdController(res, segments[1]);
     }
 

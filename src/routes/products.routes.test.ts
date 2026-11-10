@@ -29,7 +29,12 @@ beforeEach(() => {
 describe('productsRoutes', () => {
   describe('GET /products - list all products', () => {
     it('should authenticate customer and call list controller', async () => {
-      const customerReq = { user: { role: 'customer' } };
+      const customerReq = {
+        auth: {
+          userId: 'customer-id',
+          role: 'customer',
+        },
+      };
       const req = { method: 'GET' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
@@ -46,7 +51,12 @@ describe('productsRoutes', () => {
     });
 
     it('should authenticate admin and call list controller', async () => {
-      const adminReq = { user: { role: 'admin' } };
+      const adminReq = {
+        auth: {
+          userId: 'admin-id',
+          role: 'admin',
+        },
+      };
       const req = { method: 'GET' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
@@ -96,7 +106,12 @@ describe('productsRoutes', () => {
 
   describe('GET /products/:id - get product by id', () => {
     it('should authenticate customer and call get by id controller', async () => {
-      const customerReq = { user: { role: 'customer' } };
+      const customerReq = {
+        auth: {
+          userId: 'customer-id',
+          role: 'customer',
+        },
+      };
       const req = { method: 'GET' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
@@ -113,7 +128,12 @@ describe('productsRoutes', () => {
     });
 
     it('should authenticate admin and call get by id controller', async () => {
-      const adminReq = { user: { role: 'admin' } };
+      const adminReq = {
+        auth: {
+          userId: 'admin-id',
+          role: 'admin',
+        },
+      };
       const req = { method: 'GET' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
@@ -162,7 +182,12 @@ describe('productsRoutes', () => {
 
   describe('POST /products - create product', () => {
     it('should authenticate and only allow admin', async () => {
-      const adminReq = { method: 'POST', user: { role: 'admin' } };
+      const adminReq = {
+        auth: {
+          userId: 'admin-id',
+          role: 'admin',
+        },
+      };
       const req = { method: 'POST' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
@@ -213,7 +238,12 @@ describe('productsRoutes', () => {
 
   describe('PATCH /products/:id - update product', () => {
     it('should authenticate and only allow admin', async () => {
-      const adminReq = { method: 'PATCH', user: { role: 'admin' } };
+      const adminReq = {
+        auth: {
+          userId: 'admin-id',
+          role: 'admin',
+        },
+      };
       const req = { method: 'PATCH' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
@@ -281,7 +311,12 @@ describe('productsRoutes', () => {
 
   describe('DELETE /products/:id - delete product', () => {
     it('should authenticate and only allow admin', async () => {
-      const adminReq = { method: 'DELETE', user: { role: 'admin' } };
+      const adminReq = {
+        auth: {
+          userId: 'admin-id',
+          role: 'admin',
+        },
+      };
       const req = { method: 'DELETE' } as IncomingMessage;
       const res = {
         writeHead: vi.fn(),
