@@ -20,7 +20,7 @@ vi.mock('../repositories/users.repository.js', () => ({
           name: 'John Doe',
           email: 'john.doe@example.com',
           phone: '1234567890',
-          role: 'user',
+          role: 'customer',
           address: {
             street: '123 Main St',
             number: '1',
@@ -58,6 +58,90 @@ describe('authenticateUser', () => {
     expect(result).toHaveProperty('id', '1');
     expect(verifyPassword).toHaveBeenCalledWith(password, 'hashedpassword');
     expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
+  });
+
+  describe('identifier normalization', () => {
+    it('should normalize email to lowercase', async () => {
+      await authenticateUser('JOHN.DOE@EXAMPLE.COM', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
+    });
+
+    it('should normalize mixed case email to lowercase', async () => {
+      await authenticateUser('John.Doe@Example.Com', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
+    });
+
+    it('should trim whitespace from email', async () => {
+      await authenticateUser('  john.doe@example.com  ', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
+    });
+
+    it('should normalize email with leading and trailing spaces to lowercase', async () => {
+      await authenticateUser('  JOHN.DOE@EXAMPLE.COM  ', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
+    });
+
+    it('should trim whitespace from phone without converting to lowercase', async () => {
+      vi.mocked(findUserByIdentifierRepository).mockImplementation(async (identifier: string) => {
+        if (identifier === '1234567890') {
+          return {
+            user: {
+              id: '2',
+              name: 'Test User',
+              email: 'test@example.com',
+              phone: '1234567890',
+              role: 'customer',
+              address: {
+                street: '123 Main St',
+                number: '1',
+                city: 'City',
+                state: 'State',
+                neighborhood: 'Neighborhood',
+              },
+            },
+            passwordHash: password,
+          };
+        }
+        throw new UserNotFoundError();
+      });
+
+      await authenticateUser('  1234567890  ', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('1234567890');
+    });
+
+    it('should preserve phone format after trimming spaces', async () => {
+      vi.mocked(findUserByIdentifierRepository).mockImplementation(async (identifier: string) => {
+        if (identifier === '(11) 99999-9999') {
+          return {
+            user: {
+              id: '3',
+              name: 'Test User',
+              email: 'test@example.com',
+              phone: '(11) 99999-9999',
+              role: 'customer',
+              address: {
+                street: '123 Main St',
+                number: '1',
+                city: 'City',
+                state: 'State',
+                neighborhood: 'Neighborhood',
+              },
+            },
+            passwordHash: password,
+          };
+        }
+        throw new UserNotFoundError();
+      });
+
+      await authenticateUser('  (11) 99999-9999  ', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('(11) 99999-9999');
+    });
   });
   it('should throw InvalidCredentialsError if user does not exist', async () => {
     await expect(authenticateUser('nonexistent@example.com', password)).rejects.toThrow(

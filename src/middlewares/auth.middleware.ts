@@ -13,7 +13,15 @@ export const authMiddleware = async (
     return null;
   }
 
-  const token = req.headers.authorization.split(' ')[1];
+  const authorization = req.headers.authorization;
+  const match = authorization?.trim().match(/^Bearer\s+(\S+)$/i);
+
+  if (!match) {
+    sendJson(res, 401, { error: 'Unauthorized' });
+    return null;
+  }
+
+  const token = match[1];
 
   if (!token) {
     sendJson(res, 401, { error: 'Unauthorized' });
@@ -34,7 +42,7 @@ export const authMiddleware = async (
     };
 
     return authenticatedReq;
-  } catch (error) {
+  } catch {
     sendJson(res, 401, { error: 'Unauthorized' });
     return null;
   }
