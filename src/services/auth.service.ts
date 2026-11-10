@@ -22,7 +22,12 @@ export const authenticateUser = async (identifier: string, password: string): Pr
   }
 
   try {
-    const userRecord = await findUserByIdentifierRepository(identifier);
+    const normalizedIdentifier = identifier.trim();
+    const userRecord = await findUserByIdentifierRepository(
+      normalizedIdentifier.includes('@')
+        ? normalizedIdentifier.toLowerCase()
+        : normalizedIdentifier,
+    );
     const isPasswordValid = await verifyPassword(password, userRecord.passwordHash);
 
     if (!isPasswordValid) {

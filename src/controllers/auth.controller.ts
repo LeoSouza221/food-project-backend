@@ -17,6 +17,7 @@ export const authController = async (req: IncomingMessage, res: ServerResponse) 
   if (
     typeof parsedBody !== 'object' ||
     parsedBody === null ||
+    Array.isArray(parsedBody) ||
     !('identifier' in parsedBody) ||
     !('password' in parsedBody) ||
     typeof parsedBody.identifier !== 'string' ||
