@@ -2,11 +2,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
 import { pool } from '../src/database/pool.js';
 import { SignJWT } from 'jose';
-import { JWT_SECRET_BYTES } from '../src/services/jwt.js';
+import { generateJWT, JWT_SECRET_BYTES } from '../src/services/jwt.js';
 
 const app = createApp();
 const userIds: string[] = [];
 let baseUrl: string;
+let adminToken: string;
 
 const address = {
   street: 'Rua das Flores',
@@ -58,6 +59,7 @@ beforeAll(async () => {
   }
 
   baseUrl = `http://127.0.0.1:${serverAddress.port}`;
+  adminToken = await generateJWT('users-test-admin', 'admin');
 });
 
 afterAll(async () => {
@@ -189,13 +191,17 @@ describe('Users API integration', () => {
   it('lists users and retrieves one by ID', async () => {
     const { payload, ...created } = await createUser();
 
-    const listResponse = await fetch(`${baseUrl}/users`);
+    const listResponse = await fetch(`${baseUrl}/users`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
     expect(listResponse.status).toBe(200);
     expect(await listResponse.json()).toEqual({
       users: expect.arrayContaining([expect.objectContaining({ id: created.id })]),
     });
 
-    const getResponse = await fetch(`${baseUrl}/users/${created.id}`);
+    const getResponse = await fetch(`${baseUrl}/users/${created.id}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
     expect(getResponse.status).toBe(200);
     expect(await getResponse.json()).toEqual({
       user: { id: created.id, role: 'customer', ...payload },
@@ -203,10 +209,13 @@ describe('Users API integration', () => {
   });
 
   it('returns 400 for invalid IDs and 404 for unknown users', async () => {
-    const invalid = await fetch(`${baseUrl}/users/abc`);
+    const headers = { Authorization: `Bearer ${adminToken}` };
+    const invalid = await fetch(`${baseUrl}/users/abc`, { headers });
     expect(invalid.status).toBe(400);
 
-    const missing = await fetch(`${baseUrl}/users/123e4567-e89b-42d3-a456-426614174999`);
+    const missing = await fetch(`${baseUrl}/users/123e4567-e89b-42d3-a456-426614174999`, {
+      headers,
+    });
     expect(missing.status).toBe(404);
     expect(await missing.json()).toEqual({ error: 'User not found' });
   });
@@ -214,10 +223,15 @@ describe('Users API integration', () => {
   it('updates a user', async () => {
     const { payload, ...created } = await createUser();
     const newAddress = { ...address, city: 'Londrina', state: 'SP' };
+    const customerToken = await generateJWT(created.id, 'customer');
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${customerToken}`,
+    };
 
     const response = await fetch(`${baseUrl}/users/${created.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ phone: '4433334444', address: newAddress }),
     });
     expect(response.status).toBe(200);
@@ -234,7 +248,7 @@ describe('Users API integration', () => {
 
     const invalid = await fetch(`${baseUrl}/users/${created.id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ address: { ...address, state: 'ZZ' } }),
     });
     expect(invalid.status).toBe(400);
@@ -243,12 +257,57 @@ describe('Users API integration', () => {
   it('deletes a user', async () => {
     const created = await createUser();
 
-    const response = await fetch(`${baseUrl}/users/${created.id}`, { method: 'DELETE' });
+    const options = { method: 'DELETE', headers: { Authorization: `Bearer ${adminToken}` } };
+    const response = await fetch(`${baseUrl}/users/${created.id}`, options);
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ message: 'User deleted' });
 
-    const again = await fetch(`${baseUrl}/users/${created.id}`, { method: 'DELETE' });
+    const again = await fetch(`${baseUrl}/users/${created.id}`, options);
     expect(again.status).toBe(404);
+  });
+
+  it('enforces customer ownership and admin access to user resources', async () => {
+    const customer = await createUser();
+    const other = await createUser();
+    const customerToken = await generateJWT(customer.id, 'customer');
+    const headers = { Authorization: `Bearer ${customerToken}` };
+
+    const ownProfile = await fetch(`${baseUrl}/users/${customer.id}`, { headers });
+    expect(ownProfile.status).toBe(200);
+    expect(await ownProfile.json()).toEqual({
+      user: { id: customer.id, role: 'customer', ...customer.payload },
+    });
+
+    const otherProfile = await fetch(`${baseUrl}/users/${other.id}`, { headers });
+    expect(otherProfile.status).toBe(403);
+    expect(await otherProfile.json()).toEqual({ error: 'Forbidden' });
+
+    const updateOther = await fetch(`${baseUrl}/users/${other.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Alteração proibida' }),
+    });
+    expect(updateOther.status).toBe(403);
+    expect(await updateOther.json()).toEqual({ error: 'Forbidden' });
+
+    const list = await fetch(`${baseUrl}/users`, { headers });
+    expect(list.status).toBe(403);
+    expect(await list.json()).toEqual({ error: 'Forbidden' });
+
+    const deleteUser = await fetch(`${baseUrl}/users/${other.id}`, {
+      method: 'DELETE',
+      headers,
+    });
+    expect(deleteUser.status).toBe(403);
+    expect(await deleteUser.json()).toEqual({ error: 'Forbidden' });
+
+    const adminProfile = await fetch(`${baseUrl}/users/${other.id}`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(adminProfile.status).toBe(200);
+    expect(await adminProfile.json()).toEqual({
+      user: { id: other.id, role: 'customer', ...other.payload },
+    });
   });
 
   describe('GET /users/me', () => {
@@ -289,7 +348,7 @@ describe('Users API integration', () => {
       expect(await response.json()).toEqual({ error: 'Unauthorized' });
     });
     it('should return 401 for expired token access to /users/me', async () => {
-      const { payload, ...created } = await createUser();
+      const created = await createUser();
 
       const now = Math.floor(Date.now() / 1000);
 

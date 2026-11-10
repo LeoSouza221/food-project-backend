@@ -7,7 +7,7 @@ import {
   updateUserController,
 } from '../controllers/user.controller.js';
 import { sendJson } from '../http/json.js';
-import { authMiddleware } from '../middlewares/auth.middleware.js';
+import { requireAuth } from '../middlewares/require-auth.js';
 
 export const usersRoutes = async (
   req: IncomingMessage,
@@ -24,16 +24,30 @@ export const usersRoutes = async (
 
   if (req.method === 'GET') {
     if (segments.length === 1) {
+      const authenticatedReq = await requireAuth(req, res, ['admin']);
+      if (!authenticatedReq) {
+        return;
+      }
       return listUsersController(res);
     }
 
     if (segments.length === 2 && segments[1]) {
       if (segments[1] === 'me') {
-        const authenticatedReq = await authMiddleware(req, res);
+        const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
         if (!authenticatedReq) {
           return;
         }
+
         return getUserByIdController(res, authenticatedReq.auth.userId);
+      }
+
+      const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+      if (!authenticatedReq) {
+        return;
+      }
+
+      if (authenticatedReq.auth.role !== 'admin' && authenticatedReq.auth.userId !== segments[1]) {
+        return sendJson(res, 403, { error: 'Forbidden' });
       }
 
       return getUserByIdController(res, segments[1]);
@@ -48,7 +62,20 @@ export const usersRoutes = async (
     }
 
     if (req.method === 'PATCH') {
+      const authenticatedReq = await requireAuth(req, res, ['admin', 'customer']);
+      if (!authenticatedReq) {
+        return;
+      }
+
+      if (authenticatedReq.auth.role !== 'admin' && authenticatedReq.auth.userId !== segments[1]) {
+        return sendJson(res, 403, { error: 'Forbidden' });
+      }
       return updateUserController(req, res, segments[1]);
+    }
+
+    const authenticatedReq = await requireAuth(req, res, ['admin']);
+    if (!authenticatedReq) {
+      return;
     }
 
     return deleteUserController(res, segments[1]);
