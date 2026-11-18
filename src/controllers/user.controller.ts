@@ -71,6 +71,7 @@ export const createUserController = async (req: IncomingMessage, res: ServerResp
     const user = await createUser(parsedBody);
     return sendJson(res, 201, { message: 'User created', user });
   } catch (error) {
+    console.error(error);
     if (error instanceof InvalidUserDataError) {
       return sendJson(res, 400, { error: 'Invalid user data' });
     }

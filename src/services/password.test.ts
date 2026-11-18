@@ -23,6 +23,14 @@ describe('Password Service', () => {
     const invalidSaltHashedPassword = 'scrypt$invalidSalt$abcdef';
     await expect(verifyPassword('password', invalidSaltHashedPassword)).resolves.toBe(false);
   });
+  it('generates different hashes for the same password', async () => {
+    const password = 'mySecurePassword123!';
+
+    const firstHash = await hashPassword(password);
+    const secondHash = await hashPassword(password);
+
+    expect(firstHash).not.toBe(secondHash);
+  });
 
   describe('malformed stored hashes', () => {
     const password = 'mySecurePassword123!';
@@ -59,6 +67,14 @@ describe('Password Service', () => {
     it('should return false when there are extra segments after the hash', async () => {
       const [salt, hash] = await parse();
       await expect(verifyPassword(password, `scrypt$${salt}$${hash}$extra`)).resolves.toBe(false);
+    });
+    it('generates different hashes for the same password', async () => {
+      const password = 'mySecurePassword123!';
+
+      const firstHash = await hashPassword(password);
+      const secondHash = await hashPassword(password);
+
+      expect(firstHash).not.toBe(secondHash);
     });
   });
 });

@@ -8,7 +8,7 @@ services:
       POSTGRES_USER: food_user
       POSTGRES_PASSWORD: food_dev_password
     ports:
-      - '5433:5432'
+      - '15433:5432'
     volumes:
       - food_project_data:/var/lib/postgresql/data
 

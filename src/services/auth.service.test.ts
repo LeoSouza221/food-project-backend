@@ -85,6 +85,12 @@ describe('authenticateUser', () => {
       expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
     });
 
+    it('should normalize uppercase email to lowercase', async () => {
+      await authenticateUser('JOHN.DOE@EXAMPLE.COM ', password);
+
+      expect(findUserByIdentifierRepository).toHaveBeenCalledWith('john.doe@example.com');
+    });
+
     it('should trim whitespace from phone without converting to lowercase', async () => {
       vi.mocked(findUserByIdentifierRepository).mockImplementation(async (identifier: string) => {
         if (identifier === '1234567890') {
