@@ -7,11 +7,13 @@ vi.mock('../controllers/auth.controller.js', () => ({
   authController: vi.fn(),
 }));
 
-const createRequest = (method: string) => ({ method }) as IncomingMessage;
+const createRequest = (method: string) =>
+  ({ method, socket: { remoteAddress: '127.0.0.1' } }) as IncomingMessage;
 const createResponse = () =>
   ({
     writeHead: vi.fn(),
     end: vi.fn(),
+    setHeader: vi.fn(),
   }) as unknown as ServerResponse;
 
 beforeEach(() => {
@@ -59,5 +61,19 @@ describe('authRoutes', () => {
       'Content-Type': 'application/json',
     });
     expect(res.end).toHaveBeenCalled();
+  });
+  it('should return 429 for too many requests', () => {
+    const req = createRequest('POST');
+    const res = createResponse();
+    const segments = ['auth', 'login'];
+    // Simulate rate limiting by calling the route multiple times
+    for (let i = 0; i < 10; i++) {
+      authRoutes(req, res, segments);
+    }
+
+    expect(res.end).toHaveBeenCalledWith('Too Many Requests');
+    expect(res.statusCode).toBe(429);
+
+    // expect(res.writeHead).toHaveBeenCalledWith(429);
   });
 });

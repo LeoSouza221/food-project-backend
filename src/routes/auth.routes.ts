@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { authController } from '../controllers/auth.controller.js';
 import { sendJson } from '../http/json.js';
+import { rateLimitMiddleware } from '../middlewares/rate-limit.middleware.js';
 
 export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: string[]) => {
   const isLoginRoute = segments.length === 2 && segments[0] === 'auth' && segments[1] === 'login';
@@ -13,5 +14,6 @@ export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: 
     return sendJson(res, 405, { error: 'Method Not Allowed' }, { Allow: 'POST' });
   }
 
+  return rateLimitMiddleware(req, res, () => authController(req, res));
   return authController(req, res);
 };

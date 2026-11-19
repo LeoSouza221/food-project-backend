@@ -1,4 +1,4 @@
-import { describe, it, expect, afterAll, beforeAll } from 'vitest';
+import { describe, it, expect, afterAll, beforeAll, vi, beforeEach, afterEach } from 'vitest';
 import { pool } from '../src/database/pool.js';
 import { createApp } from '../src/app.js';
 import type { User } from '../src/types/user.js';
@@ -79,6 +79,11 @@ afterAll(async () => {
       });
     });
   }
+});
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.advanceTimersByTime(60000);
 });
 
 describe('authRoutes integration', () => {
@@ -238,5 +243,28 @@ describe('authRoutes integration', () => {
     });
 
     expect(response.status).toBe(400);
+  });
+  it('should return 429 for too many requests', async () => {
+    for (let i = 0; i < 5; i++) {
+      await fetch(`${baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identifier: user.email,
+          password: 'wrong-password',
+        }),
+      });
+    }
+
+    const response = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        identifier: user.email,
+        password: 'wrong-password',
+      }),
+    });
+
+    expect(response.status).toBe(429);
   });
 });
