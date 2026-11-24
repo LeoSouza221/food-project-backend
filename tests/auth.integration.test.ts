@@ -92,7 +92,7 @@ describe('authRoutes integration', () => {
 
     expect(response.status).toBe(405);
   });
-  it('should return 200 for supported methods', async () => {
+  it('should return 200 for email identifier', async () => {
     const response = await fetch(`${baseUrl}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -245,8 +245,9 @@ describe('authRoutes integration', () => {
     expect(response.status).toBe(400);
   });
   it('should return 429 for too many requests', async () => {
+    vi.useFakeTimers();
     for (let i = 0; i < 5; i++) {
-      await fetch(`${baseUrl}/auth/login`, {
+      const response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -254,6 +255,8 @@ describe('authRoutes integration', () => {
           password: 'wrong-password',
         }),
       });
+
+      expect(response.status).toBe(401);
     }
 
     const response = await fetch(`${baseUrl}/auth/login`, {

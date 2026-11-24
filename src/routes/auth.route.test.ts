@@ -73,7 +73,5 @@ describe('authRoutes', () => {
 
     expect(res.end).toHaveBeenCalledWith('Too Many Requests');
     expect(res.statusCode).toBe(429);
-
-    // expect(res.writeHead).toHaveBeenCalledWith(429);
   });
 });

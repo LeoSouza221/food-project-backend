@@ -5,6 +5,13 @@ import type { User } from '../types/user.js';
 import { verifyPassword } from './password.js';
 import { generateJWT } from './jwt.js';
 
+const dummyHash = process.env.DUMMY_PASSWORD_HASH;
+const isValidDummyHash = typeof dummyHash === 'string' && dummyHash.length > 0;
+
+if (!isValidDummyHash) {
+  throw new Error('DUMMY_PASSWORD_HASH é obrigatória');
+}
+
 const isInvalidIdentifier = (identifier: string) => {
   return typeof identifier !== 'string' || identifier.trim() === '';
 };
@@ -21,26 +28,23 @@ export const authenticateUser = async (identifier: string, password: string): Pr
     throw new Error('Password is required');
   }
 
-  try {
-    const normalizedIdentifier = identifier.trim();
-    const userRecord = await findUserByIdentifierRepository(
-      normalizedIdentifier.includes('@')
-        ? normalizedIdentifier.toLowerCase()
-        : normalizedIdentifier,
-    );
-    const isPasswordValid = await verifyPassword(password, userRecord.passwordHash);
+  const normalizedIdentifier = identifier.trim();
+  const userRecord = await findUserByIdentifierRepository(
+    normalizedIdentifier.includes('@') ? normalizedIdentifier.toLowerCase() : normalizedIdentifier,
+  );
 
-    if (!isPasswordValid) {
-      throw new InvalidCredentialsError();
-    }
-
-    return userRecord.user;
-  } catch (error) {
-    if (error instanceof UserNotFoundError) {
-      throw new InvalidCredentialsError();
-    }
-    throw error;
+  if (!userRecord) {
+    await verifyPassword(password, dummyHash);
+    throw new InvalidCredentialsError();
   }
+
+  const isPasswordValid = await verifyPassword(password, userRecord.passwordHash);
+
+  if (!isPasswordValid) {
+    throw new InvalidCredentialsError();
+  }
+
+  return userRecord.user;
 };
 
 export const loginUser = async (

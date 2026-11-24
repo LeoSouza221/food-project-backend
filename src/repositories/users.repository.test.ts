@@ -188,8 +188,8 @@ describe('findUserByIdentifierRepository', () => {
     });
   });
 
-  it('throws when the user does not exist', async () => {
+  it('returns null when the user does not exist', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    await expect(findUserByIdentifierRepository('a@a.com')).rejects.toThrow(UserNotFoundError);
+    await expect(findUserByIdentifierRepository('a@a.com')).resolves.toBeNull();
   });
 });

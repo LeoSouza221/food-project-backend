@@ -142,13 +142,13 @@ export const deleteUserRepository = async (id: string): Promise<void> => {
 
 export const findUserByIdentifierRepository = async (
   identifier: string,
-): Promise<UserAuthRecord> => {
+): Promise<UserAuthRecord | null> => {
   const query = `SELECT ${columns}, password_hash FROM users WHERE email = $1 OR phone = $1`;
   const result = await pool.query<UserRow>(query, [identifier]);
   const row = result.rows[0];
 
   if (!row) {
-    throw new UserNotFoundError();
+    return null;
   }
 
   return {
