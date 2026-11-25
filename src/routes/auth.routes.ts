@@ -15,5 +15,4 @@ export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: 
   }
 
   return rateLimitMiddleware(req, res, () => authController(req, res));
-  return authController(req, res);
 };

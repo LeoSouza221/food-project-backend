@@ -1,12 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
 import type { UserRole } from '../types/user.js';
 import type { VerifiedTokenPayload } from '../types/jwt.js';
+import { config } from '../config/config.js';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET is not defined in environment variables');
-}
-
+const JWT_SECRET = config.jwtSecret;
 const JWT_SECRET_BYTES = new TextEncoder().encode(JWT_SECRET);
 
 export { JWT_SECRET_BYTES };

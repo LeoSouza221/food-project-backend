@@ -105,6 +105,13 @@ for example `requireAuth(req, res, ['admin'])`. If it returns `null`, stop proce
 middleware has already sent a 401 or 403 response. An empty role array denies every role.
 Validate the route shape before applying the protection.
 
+## Refresh token helpers
+
+`generateRefreshToken()` creates a URL-safe token from 32 cryptographically secure random bytes.
+Use `hashRefreshToken(token)` to obtain its SHA-256 hash as hexadecimal text for
+`sessions.refresh_token_hash`; store only the hash, not the original token.
+These helpers do not create or manage sessions.
+
 ## Status
 
 This project is under active development, with a focus on hands-on learning and the incremental evolution of backend architecture.
