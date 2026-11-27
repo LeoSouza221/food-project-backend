@@ -76,11 +76,9 @@ export const rotateSessionRepository = async (
 ): Promise<Session | null> => {
   const query = `
     UPDATE sessions
-    SET
-      refresh_token_hash = $2,
-      last_used_at = NOW()
-    WHERE
-      refresh_token_hash = $1
+    SET refresh_token_hash = $2,
+        last_used_at = NOW()
+    WHERE refresh_token_hash = $1
       AND revoked_at IS NULL
       AND expires_at > NOW()
     RETURNING ${columns};

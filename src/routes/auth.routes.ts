@@ -1,12 +1,20 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { authController } from '../controllers/auth.controller.js';
+import {
+  authController,
+  logoutController,
+  refreshTokenController,
+} from '../controllers/auth.controller.js';
 import { sendJson } from '../http/json.js';
 import { rateLimitMiddleware } from '../middlewares/rate-limit.middleware.js';
 
 export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: string[]) => {
-  const isLoginRoute = segments.length === 2 && segments[0] === 'auth' && segments[1] === 'login';
+  const action = segments[1];
 
-  if (!isLoginRoute) {
+  if (
+    segments.length !== 2 ||
+    segments[0] !== 'auth' ||
+    (action !== 'login' && action !== 'refresh' && action !== 'logout')
+  ) {
     return sendJson(res, 404, { error: 'Not Found' });
   }
 
@@ -14,5 +22,9 @@ export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: 
     return sendJson(res, 405, { error: 'Method Not Allowed' }, { Allow: 'POST' });
   }
 
-  return rateLimitMiddleware(req, res, () => authController(req, res));
+  if (action === 'login') {
+    return rateLimitMiddleware(req, res, () => authController(req, res));
+  }
+
+  return action === 'refresh' ? refreshTokenController(req, res) : logoutController(req, res);
 };

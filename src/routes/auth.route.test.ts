@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { authRoutes } from './auth.routes.js';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { authController } from '../controllers/auth.controller.js';
+import {
+  authController,
+  logoutController,
+  refreshTokenController,
+} from '../controllers/auth.controller.js';
 
 vi.mock('../controllers/auth.controller.js', () => ({
   authController: vi.fn(),
+  refreshTokenController: vi.fn(),
+  logoutController: vi.fn(),
 }));
 
 const createRequest = (method: string) =>
@@ -52,15 +58,25 @@ describe('authRoutes', () => {
     });
     expect(res.end).toHaveBeenCalled();
   });
-  it('should return 404 for logout route', () => {
+  it.each([
+    ['refresh', refreshTokenController],
+    ['logout', logoutController],
+  ])('dispatches POST /auth/%s', (action, controller) => {
     const req = createRequest('POST');
     const res = createResponse();
-    const segments = ['auth', 'logout'];
-    authRoutes(req, res, segments);
-    expect(res.writeHead).toHaveBeenCalledWith(404, {
+    authRoutes(req, res, ['auth', action]);
+    expect(controller).toHaveBeenCalledOnce();
+    expect(controller).toHaveBeenCalledWith(req, res);
+  });
+  it.each(['refresh', 'logout'])('rejects unsupported methods for /auth/%s', (action) => {
+    const res = createResponse();
+    authRoutes(createRequest('GET'), res, ['auth', action]);
+    expect(res.writeHead).toHaveBeenCalledWith(405, {
+      Allow: 'POST',
       'Content-Type': 'application/json',
     });
-    expect(res.end).toHaveBeenCalled();
+    expect(refreshTokenController).not.toHaveBeenCalled();
+    expect(logoutController).not.toHaveBeenCalled();
   });
   it('should return 429 for too many requests', () => {
     const req = createRequest('POST');

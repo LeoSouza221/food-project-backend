@@ -29,3 +29,8 @@ export type SessionRow = {
   last_used_at: Date | null;
   revoked_at: Date | null;
 };
+
+export type SessionMetadata = {
+  userAgent?: string | null;
+  ipAddress?: string | null;
+};

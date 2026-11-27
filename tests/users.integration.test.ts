@@ -323,10 +323,12 @@ describe('Users API integration', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier: payload.email, password }),
       });
-      const { data: { token } = {} } = await loginResponse.json();
+      expect(loginResponse.status).toBe(200);
+      const { data: { accessToken } = {} } = await loginResponse.json();
+      expect(accessToken).toEqual(expect.any(String));
 
       const response = await fetch(`${baseUrl}/users/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({

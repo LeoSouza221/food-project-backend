@@ -17,6 +17,8 @@ const address = {
 };
 const password = 'senha-segura-123';
 let sequence = 0;
+const initialTime = Date.now();
+let testNumber = 0;
 
 // Telefone e e-mail são únicos, então cada usuário criado recebe valores próprios.
 const buildPayload = () => {
@@ -82,8 +84,12 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  vi.useFakeTimers();
-  vi.advanceTimersByTime(60000);
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(initialTime + ++testNumber * 60_000);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('authRoutes integration', () => {
@@ -104,7 +110,8 @@ describe('authRoutes integration', () => {
 
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data.data).toHaveProperty('token');
+    expect(data.data).toHaveProperty('accessToken');
+    expect(data.data).toHaveProperty('refreshToken');
     expect(data.data).toHaveProperty('user');
     expect(data.data.user).toEqual(
       expect.objectContaining({
@@ -113,8 +120,10 @@ describe('authRoutes integration', () => {
     );
     expect(data.data.user).not.toHaveProperty('password_hash');
     expect(data.data.user).not.toHaveProperty('password');
-    expect(typeof data.data.token).toBe('string');
-    expect(data.data.token.length).toBeGreaterThan(0);
+    expect(typeof data.data.accessToken).toBe('string');
+    expect(data.data.accessToken.length).toBeGreaterThan(0);
+    expect(typeof data.data.refreshToken).toBe('string');
+    expect(data.data.refreshToken.length).toBeGreaterThan(0);
   });
   it('should return 200 with phone identifier', async () => {
     const response = await fetch(`${baseUrl}/auth/login`, {
@@ -128,7 +137,8 @@ describe('authRoutes integration', () => {
 
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data.data).toHaveProperty('token');
+    expect(data.data).toHaveProperty('accessToken');
+    expect(data.data).toHaveProperty('refreshToken');
     expect(data.data).toHaveProperty('user');
     expect(data.data.user).toEqual(
       expect.objectContaining({
@@ -137,8 +147,10 @@ describe('authRoutes integration', () => {
     );
     expect(data.data.user).not.toHaveProperty('password_hash');
     expect(data.data.user).not.toHaveProperty('password');
-    expect(typeof data.data.token).toBe('string');
-    expect(data.data.token.length).toBeGreaterThan(0);
+    expect(typeof data.data.accessToken).toBe('string');
+    expect(data.data.accessToken.length).toBeGreaterThan(0);
+    expect(typeof data.data.refreshToken).toBe('string');
+    expect(data.data.refreshToken.length).toBeGreaterThan(0);
   });
   it('should return 401 for password having spaces', async () => {
     const response = await fetch(`${baseUrl}/auth/login`, {
@@ -245,7 +257,6 @@ describe('authRoutes integration', () => {
     expect(response.status).toBe(400);
   });
   it('should return 429 for too many requests', async () => {
-    vi.useFakeTimers();
     for (let i = 0; i < 5; i++) {
       const response = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
@@ -269,5 +280,70 @@ describe('authRoutes integration', () => {
     });
 
     expect(response.status).toBe(429);
+  });
+
+  it('should rotate refresh token', async () => {
+    const loginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: user.email, password }),
+    });
+
+    expect(loginResponse.status).toBe(200);
+    const loginData = await loginResponse.json();
+    const oldRefreshToken = loginData.data.refreshToken;
+
+    const refreshResponse = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: oldRefreshToken }),
+    });
+
+    expect(refreshResponse.status).toBe(200);
+
+    const refreshData = await refreshResponse.json();
+
+    expect(refreshData.data.accessToken).toBeTruthy();
+    expect(refreshData.data.refreshToken).toBeTruthy();
+    expect(refreshData.data.refreshToken).not.toBe(oldRefreshToken);
+
+    const oldTokenResponse = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken: oldRefreshToken }),
+    });
+
+    expect(oldTokenResponse.status).toBe(401);
+  });
+
+  it('should revoke session on logout', async () => {
+    const loginResponse = await fetch(`${baseUrl}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ identifier: user.email, password }),
+    });
+
+    expect(loginResponse.status).toBe(200);
+    const loginData = await loginResponse.json();
+
+    const logoutResponse = await fetch(`${baseUrl}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        refreshToken: loginData.data.refreshToken,
+      }),
+    });
+
+    expect(logoutResponse.status).toBe(200);
+
+    const refreshResponse = await fetch(`${baseUrl}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        refreshToken: loginData.data.refreshToken,
+      }),
+    });
+
+    expect(refreshResponse.status).toBe(401);
   });
 });
