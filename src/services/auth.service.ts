@@ -98,13 +98,15 @@ export const refreshUserSession = async (
   const newRefreshToken = generateRefreshToken();
   const newRefreshTokenHash = hashRefreshToken(newRefreshToken);
 
+  // Generate the access token before consuming the current refresh token.
+  const accessToken = await generateJWT(user.id, user.role);
+
+  // Only rotate the session after all token generation succeeds.
   const rotatedSession = await rotateSessionRepository(currentHash, newRefreshTokenHash);
 
   if (!rotatedSession) {
     throw new InvalidCredentialsError();
   }
-
-  const accessToken = await generateJWT(user.id, user.role);
 
   return {
     accessToken,

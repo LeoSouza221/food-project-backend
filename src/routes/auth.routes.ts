@@ -8,12 +8,12 @@ import { sendJson } from '../http/json.js';
 import { rateLimitMiddleware } from '../middlewares/rate-limit.middleware.js';
 
 export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: string[]) => {
-  const action = segments[1];
+  const action = segments[1] ?? '';
 
   if (
     segments.length !== 2 ||
     segments[0] !== 'auth' ||
-    (action !== 'login' && action !== 'refresh' && action !== 'logout')
+    !['login', 'refresh', 'logout'].includes(action)
   ) {
     return sendJson(res, 404, { error: 'Not Found' });
   }
@@ -22,9 +22,13 @@ export const authRoutes = (req: IncomingMessage, res: ServerResponse, segments: 
     return sendJson(res, 405, { error: 'Method Not Allowed' }, { Allow: 'POST' });
   }
 
-  if (action === 'login') {
-    return rateLimitMiddleware(req, res, () => authController(req, res));
-  }
+  const handlers = {
+    login: authController,
+    refresh: refreshTokenController,
+    logout: logoutController,
+  };
 
-  return action === 'refresh' ? refreshTokenController(req, res) : logoutController(req, res);
+  const handler = handlers[action as keyof typeof handlers];
+
+  return rateLimitMiddleware(req, res, () => handler(req, res));
 };

@@ -169,7 +169,11 @@ describe('refreshUserSession', () => {
   it('rejects a token already rotated by another request', async () => {
     vi.mocked(sessionRepository.rotateSessionRepository).mockResolvedValueOnce(null);
     await expect(refreshUserSession('old-token')).rejects.toBeInstanceOf(InvalidCredentialsError);
-    expect(generateJWT).not.toHaveBeenCalled();
+    expect(sessionRepository.rotateSessionRepository).toHaveBeenCalledWith(
+      'hash:old-token',
+      'hash:new-token',
+    );
+    expect(generateJWT).toHaveBeenCalledWith(user.id, user.role);
   });
 });
 

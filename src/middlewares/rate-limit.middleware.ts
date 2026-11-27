@@ -24,25 +24,23 @@ export const rateLimitMiddleware = (
     return;
   }
 
-  if (!!ip) {
-    const userId = ip;
-    const now = Date.now();
-    const attempt = attempts.get(userId) || { count: 0, resetAt: now + WINDOW_MS };
-    if (attempt.resetAt <= now) {
-      attempt.count = 0;
-      attempt.resetAt = now + WINDOW_MS;
-    }
-
-    attempt.count += 1;
-    attempts.set(userId, attempt);
-    if (attempt.count > MAX_ATTEMPTS) {
-      res.statusCode = 429;
-      res.setHeader('Retry-After', Math.ceil((attempt.resetAt - now) / 1000));
-      res.end('Too Many Requests');
-      return;
-    }
-    next();
+  const userId = ip;
+  const now = Date.now();
+  const attempt = attempts.get(userId) || { count: 0, resetAt: now + WINDOW_MS };
+  if (attempt.resetAt <= now) {
+    attempt.count = 0;
+    attempt.resetAt = now + WINDOW_MS;
   }
+
+  attempt.count += 1;
+  attempts.set(userId, attempt);
+  if (attempt.count > MAX_ATTEMPTS) {
+    res.statusCode = 429;
+    res.setHeader('Retry-After', Math.ceil((attempt.resetAt - now) / 1000));
+    res.end('Too Many Requests');
+    return;
+  }
+  next();
 };
 
 const cleanupInterval = setInterval(() => {
