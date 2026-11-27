@@ -112,6 +112,14 @@ Use `hashRefreshToken(token)` to obtain its SHA-256 hash as hexadecimal text for
 `sessions.refresh_token_hash`; store only the hash, not the original token.
 These helpers do not create or manage sessions.
 
+## Session repository
+
+`saveSessionRepository` stores a session using a caller-supplied UUID and refresh token hash.
+`findSessionByRefreshTokenHashRepository` finds a session by its hash, including expired and
+revoked sessions; callers must check `expiresAt` and `revokedAt` before accepting it.
+`revokeSessionRepository` sets `revokedAt` once and returns `null` if the session does not
+exist or was already revoked. These operations are not yet connected to login or HTTP routes.
+
 ## Status
 
 This project is under active development, with a focus on hands-on learning and the incremental evolution of backend architecture.
