@@ -127,3 +127,27 @@ This project is under active development, with a focus on hands-on learning and 
 ## License
 
 Not yet defined.
+
+## Database migrations
+
+Database schema changes are managed through versioned SQL migrations.
+
+Migrations are stored in `src/database/migrations` and executed in ascending order. The `schema_migrations` table tracks which migrations have already been applied.
+
+Run pending migrations:
+
+```bash
+npm run db:migrate
+```
+
+Each migration runs inside a database transaction. A PostgreSQL advisory lock prevents concurrent migration runners from applying changes simultaneously.
+
+**Important:** Applied migration files should not be modified. Create a new migration for subsequent schema changes.
+
+## Authentication and sessions
+
+Authentication uses short-lived JWT access tokens and opaque refresh tokens.
+
+Refresh tokens are generated using cryptographically secure random bytes. Only their SHA-256 hashes are stored in PostgreSQL.
+
+Sessions support token rotation, expiration, and revocation. Refresh token rotation is performed atomically to prevent concurrent reuse of the same token.
