@@ -21,10 +21,17 @@ const toSession = (row: SessionRow): Session => ({
 
 export const saveSessionRepository = async (session: CreateSessionInput): Promise<Session> => {
   const query = `
-    INSERT INTO sessions (user_id, refresh_token_hash, user_agent, ip_address, expires_at)
+    INSERT INTO sessions (
+      user_id,
+      refresh_token_hash,
+      user_agent,
+      ip_address,
+      expires_at
+    )
     VALUES ($1, $2, $3, $4, $5)
     RETURNING ${columns};
   `;
+
   const values = [
     session.userId,
     session.refreshTokenHash,
@@ -34,6 +41,7 @@ export const saveSessionRepository = async (session: CreateSessionInput): Promis
   ];
 
   let rows: SessionRow[];
+
   try {
     ({ rows } = await pool.query<SessionRow>(query, values));
   } catch (error) {
@@ -62,11 +70,69 @@ export const findSessionByRefreshTokenHashRepository = async (
   return rows[0] ? toSession(rows[0]) : null;
 };
 
-export const revokeSessionRepository = async (id: string): Promise<Session | null> => {
-  const { rows } = await pool.query<SessionRow>(
-    `UPDATE sessions SET revoked_at = NOW() WHERE id = $1 AND revoked_at IS NULL RETURNING ${columns}`,
-    [id],
-  );
+export const rotateSessionRepository = async (
+  currentRefreshTokenHash: string,
+  newRefreshTokenHash: string,
+): Promise<Session | null> => {
+  const query = `
+    UPDATE sessions
+    SET
+      refresh_token_hash = $2,
+      last_used_at = NOW()
+    WHERE
+      refresh_token_hash = $1
+      AND revoked_at IS NULL
+      AND expires_at > NOW()
+    RETURNING ${columns};
+  `;
+
+  const { rows } = await pool.query<SessionRow>(query, [
+    currentRefreshTokenHash,
+    newRefreshTokenHash,
+  ]);
 
   return rows[0] ? toSession(rows[0]) : null;
+};
+
+export const revokeSessionRepository = async (id: string): Promise<Session | null> => {
+  const query = `
+    UPDATE sessions
+    SET revoked_at = NOW()
+    WHERE id = $1
+      AND revoked_at IS NULL
+    RETURNING ${columns};
+  `;
+
+  const { rows } = await pool.query<SessionRow>(query, [id]);
+
+  return rows[0] ? toSession(rows[0]) : null;
+};
+
+export const revokeSessionByRefreshTokenHashRepository = async (
+  refreshTokenHash: string,
+): Promise<Session | null> => {
+  const query = `
+    UPDATE sessions
+    SET revoked_at = NOW()
+    WHERE refresh_token_hash = $1
+      AND revoked_at IS NULL
+    RETURNING ${columns};
+  `;
+
+  const { rows } = await pool.query<SessionRow>(query, [refreshTokenHash]);
+
+  return rows[0] ? toSession(rows[0]) : null;
+};
+
+export const revokeAllSessionsByUserIdRepository = async (userId: string): Promise<number> => {
+  const query = `
+    UPDATE sessions
+    SET revoked_at = NOW()
+    WHERE user_id = $1
+      AND revoked_at IS NULL;
+  `;
+
+  const { rowCount } = await pool.query(query, [userId]);
+
+  return rowCount ?? 0;
 };

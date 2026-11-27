@@ -51,7 +51,7 @@ describe('authenticateUser', () => {
     await expect(authenticateUser('', '')).rejects.toThrow('Identifier is required');
   });
 
-  it.only('should authenticate user with valid identifier and password', async () => {
+  it('should authenticate user with valid identifier and password', async () => {
     const result = await authenticateUser('john.doe@example.com', password);
 
     expect(result).toHaveProperty('id', '1');
